@@ -3,6 +3,7 @@ makes your Linux desktop AppImage ready™
 <p align="center">
 <img src="resources/icons/appimage-controller-icon.svg" alt="AppImage Controller logo"/>
 </p>
+
 This application is a clone of the AppImageLauncher developed by [TheAssassin](https://github.com/TheAssassin/AppImageLauncher).
 
 Integrate AppImages to your application launcher with one click, and manage, update and remove them from there.
@@ -24,7 +25,6 @@ AppImage Controller can control how the system treats AppImages. It integrates t
 When an AppImage is opened for the first time, AppImage Controller asks whether to integrate it or run it once. The dialog can remember that choice for the application, so later versions with the same embedded desktop identity follow the same preference.
 
 The optional detection daemon records AppImages found in its watched directories and lists them in the **Detected AppImages** tab in AppImage Controller Settings. Detection does not integrate or otherwise modify discovered AppImages. Undecided items are marked as needing a decision; choose **Integrate** or **Do not integrate** in the list, or make a choice the next time the AppImage is opened. Preferences persist across sessions. Cross-version preferences require a single, unambiguous identity from embedded desktop metadata; otherwise, the choice applies only to that file path.
-
 
 ## Features
 
@@ -53,17 +53,14 @@ In Settings, **Integrate** immediately checks whether integration is supported, 
 
 Preferences are matched using a single, unambiguous identity found in the AppImage's embedded desktop entry. If there is no reliable identity, the preference is associated only with the detected file path and cannot be carried over to another version or renamed file. Decisions remain saved when a file is removed from the detected list.
 
-
 ### Update management
 
 After desktop integration, the context menu of the AppImage's entry in the application launcher will have an "Update" entry that launches a little helper tool to apply updates.
-
 
 ### Remove AppImages from system
 
 Click the "Remove" entry in the context menu in the application launcher and the removal tool will ask you to confirm.
 If you choose to do so, the desktop integration is undone, and the file is removed from your system.
-
 
 ### CLI
 
@@ -101,6 +98,9 @@ Other systems derived from the listed ones, such as for instance Linux Mint (Ubu
 
 Build instructions in [BUILD.md](BUILD.md).
 
+### Regenerating icons
+
+`resources/icons/generate-icons.sh` renders the logo (`appimage-controller-icon.svg`) to `hicolor/` PNG sizes using Inkscape, or `rsvg-convert` if Inkscape is not installed. The logo SVG avoids masks and SVG2-only syntax so it also renders correctly in Qt.
 
 ## Background
 
@@ -115,7 +115,3 @@ If you enjoy this extension, consider buying me a tea 🍵 (I’m not really a c
     <img src="https://github.com/user-attachments/assets/3b58a7fc-e605-4742-94e9-0bf3144c5021" width="200"/>
   </a>
 </p>
-
-### Regenerating icons
-
-`resources/icons/generate-icons.sh` renders the logo (`appimage-controller-icon.svg`) to `hicolor/` PNG sizes using Inkscape, or `rsvg-convert` if Inkscape is not installed. The logo SVG avoids masks and SVG2-only syntax so it also renders correctly in Qt.
