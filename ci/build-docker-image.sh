@@ -24,7 +24,8 @@ else
     echo "Using existing Docker builder $builder_name found"
 fi
 
-image=ghcr.io/theassassin/appimagelauncher-build
+owner="${GITHUB_REPOSITORY_OWNER:-rmacordeiro}"
+image="ghcr.io/${owner,,}/appimagecontroller-build"
 branch="$(git rev-parse --abbrev-ref HEAD | tr -c 'A-Za-z0-9-' '_')"
 # append platform to Docker image tag since we can't push separate (multi-arch) images to the same name without
 # creating the manifest manually

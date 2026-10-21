@@ -13,7 +13,7 @@ AppImage Controller plays well with other applications managing AppImages, for e
 However, it doesn't depend on any of those, and can run completely standalone.
 
 <p align="center">
-<img src="https://github.com/TheAssassin/AppImageLauncher/raw/master/resources/doc/screenshot.png"/>
+<img src="https://github.com/rmacordeiro/AppImageController/raw/master/resources/doc/screenshot.png"/>
 </p>
 
 > ### :smiley: About AppImage Controller

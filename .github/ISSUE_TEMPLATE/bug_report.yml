@@ -17,7 +17,7 @@ body:
     description: |
       Before submitting a bug report, please make sure you check the following boxes. Otherwise, your issue will not be processed.
     options:
-      - label: I [checked for similar issues](https://github.com/TheAssassin/AppImageLauncher/issues?q=) beforehand, but could not find any, not even closed ones. I could not add my bug report to any existing issue.
+      - label: I [checked for similar issues](https://github.com/rmacordeiro/AppImageController/issues?q=) beforehand, but could not find any, not even closed ones. I could not add my bug report to any existing issue.
         required: true
       - label: I am going to take the time to to fill in all the required details. I know that the bug report will be dismissed otherwise.
         required: true
@@ -54,14 +54,14 @@ body:
   attributes:
     label: Screenshots
     description: Please add screenshots if possible that visualize your problem and/or show how to reproduce the bug.
-    placeholder: ![screenshot describing the issue](https://raw.githubusercontent.com/TheAssassin/AppImageLauncher/master/resources/doc/screenshot.png)
+    placeholder: ![screenshot describing the issue](https://raw.githubusercontent.com/rmacordeiro/AppImageController/master/resources/doc/screenshot.png)
 - type: textarea
   id: distro
   attributes:
     label: Distribution and desktop environment
     description: |
       We need precise information about your computer's operating system. Please include version numbers.
-      You can find guides about varying distributions and desktop environments on [this Wiki page](https://github.com/TheAssassin/AppImageLauncher/wiki/Find-information-about-distribution-and-desktop-environment).
+      You can find guides about varying distributions and desktop environments on [this Wiki page](https://github.com/rmacordeiro/AppImageController/wiki/Find-information-about-distribution-and-desktop-environment).
   validations:
     required: true
 - type: textarea

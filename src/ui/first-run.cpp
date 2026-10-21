@@ -48,7 +48,7 @@ private Q_SLOTS:
             resetDefaults();
         } else if (button == firstRunDialog->buttonBox->button(QDialogButtonBox::Help)) {
             qDebug() << "help";
-            QDesktopServices::openUrl(QUrl("https://github.com/TheAssassin/AppImageLauncher/wiki/First-run"));
+            QDesktopServices::openUrl(QUrl("https://github.com/rmacordeiro/AppImageController/wiki/First-run"));
 
         } else {
             qDebug() << "unknown button clicked" << button;

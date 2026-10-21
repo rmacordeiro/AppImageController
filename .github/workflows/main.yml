@@ -1,6 +1,15 @@
 name: Continuous builds
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build:
@@ -58,24 +67,36 @@ jobs:
               appimagelauncher*.tar*
               appimagelauncher-lite-*.AppImage*
 
-  upload:
+  release:
     name: Create release and upload artifacts
     needs:
       - build
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
       - name: Inspect directory after downloading artifacts
-        run: ls -alFR
+        run: ls -alFR artifacts
       - name: Create release and upload artifacts
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WEBDAV_URL: ${{ secrets.WEBDAV_URL }}
-          WEBDAV_USER: ${{ secrets.WEBDAV_USER }}
-          WEBDAV_PASSWORD: ${{ secrets.WEBDAV_PASSWORD }}
-          APPIMAGE_EXTRACT_AND_RUN: 1
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-            wget -q https://github.com/TheAssassin/pyuploadtool/releases/download/continuous/pyuploadtool-x86_64.AppImage
-            chmod +x pyuploadtool-x86_64.AppImage
-            ./pyuploadtool-x86_64.AppImage **/appimagelauncher*.{deb,rpm,AppImage*}
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              tag="${GITHUB_REF_NAME}"
+              flags=()
+          else
+              tag=continuous
+              flags=(--prerelease)
+              gh release delete "$tag" --cleanup-tag --yes || true
+          fi
+          gh release create "$tag" "${flags[@]}" --target "$GITHUB_SHA" --title "$tag" \
+              --notes "Automated build of $GITHUB_SHA" \
+              artifacts/appimagelauncher*.deb* artifacts/appimagelauncher*.rpm* \
+              artifacts/appimagelauncher*.tar* artifacts/appimagelauncher-lite-*.AppImage*

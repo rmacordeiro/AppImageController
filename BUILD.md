@@ -7,12 +7,12 @@ These instructions describe the project's current Debian/Ubuntu build dependenci
 
 This step is only required if you would like to build the source from GitHub. *If you have a local copy, please skip this section.*
 
-You can download the source either using Git or by manually downloading a tarball on the [Releases page](https://github.com/TheAssassin/AppImageLauncher/releases).
+You can download the source either using Git or by manually downloading a tarball on the [Releases page](https://github.com/rmacordeiro/AppImageController/releases).
 
 The branch can be customized by setting the `-b` or `--branch` argument. Select `stable` to download the current stable source or use `master` to get the most current unstable source containing the latest features.
 
 ```shell
-git clone https://github.com/TheAssassin/AppImageLauncher.git -b stable
+git clone https://github.com/rmacordeiro/AppImageController.git 
 cd AppImageLauncher
 git submodule update --init --recursive
 ```

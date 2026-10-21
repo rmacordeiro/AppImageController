@@ -136,9 +136,9 @@ if [[ "${BUILD_LITE:-}" == "" ]]; then
     esac
 
     # common meta info
-    export LDNP_META_URL="https://github.com/TheAssassin/AppImageLauncher"
-    export LDNP_META_BUG_URL="https://github.com/TheAssassin/AppImageLauncher/issues"
-    export LDNP_META_VENDOR="TheAssassin"
+    export LDNP_META_URL="https://github.com/rmacordeiro/AppImageController"
+    export LDNP_META_BUG_URL="https://github.com/rmacordeiro/AppImageController/issues"
+    export LDNP_META_VENDOR="rmacordeiro"
 
     export LDNP_META_DEB_DEPENDS="systemd, libgl1, libfontconfig1, libharfbuzz0b, libfribidi0"
     export LDNP_META_DEB_ARCHITECTURE="$deb_build_arch"
