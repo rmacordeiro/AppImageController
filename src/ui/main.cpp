@@ -44,7 +44,7 @@ int runAppImage(const QString& pathToAppImage, unsigned long argc, char** argv) 
 
     auto type = appimage_get_type(fullPathToAppImage.toStdString().c_str(), false);
     if (type < 1 || type > 3) {
-        displayError(QObject::tr("AppImageLauncher does not support type %1 AppImages at the moment.").arg(type));
+        displayError(QObject::tr("AppImage Controller does not support type %1 AppImages at the moment.").arg(type));
         return 1;
     }
 
@@ -124,10 +124,10 @@ QCoreApplication* getApp(char** argv) {
         app = new QCoreApplication(*fakeArgc, fakeArgv);
     } else {
         auto uiApp = new QApplication(*fakeArgc, fakeArgv);
-        QApplication::setApplicationDisplayName("AppImageLauncher");
+        QApplication::setApplicationDisplayName("AppImage Controller");
 
         // this doesn't seem to have any effect... but it doesn't hurt either
-        uiApp->setWindowIcon(QIcon(":/AppImageLauncher.svg"));
+        uiApp->setWindowIcon(QIcon(":/AppImageController.svg"));
 
         app = uiApp;
     }
@@ -173,7 +173,7 @@ int main(int argc, char** argv) {
           << "  path                        " << QObject::tr("Path to AppImage (mandatory)").toStdString() << std::endl;
 
     auto displayVersion = [&app]() {
-        std::cerr << "AppImageLauncher " << app->applicationVersion().toStdString() << std::endl;
+        std::cerr << "AppImage Controller " << app->applicationVersion().toStdString() << std::endl;
     };
 
     // display usage and exit if path to AppImage is missing
@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
                 // exit immediately after cleanup
                 return 0;
             } else {
-                std::cerr << QObject::tr("Unknown AppImageLauncher option: %1").arg(arg).toStdString() << std::endl;
+                std::cerr << QObject::tr("Unknown AppImage Controller option: %1").arg(arg).toStdString() << std::endl;
                 return 1;
             }
         } else {
@@ -283,15 +283,18 @@ int main(int argc, char** argv) {
         displayError("Could not read config file");
     }
 
-    // if the user opted out of the "ask move" thing, we can just run the AppImage
-    if (config->contains("AppImageLauncher/ask_to_move") && !config->value("AppImageLauncher/ask_to_move").toBool()) {
+    if (!recordDetectedAppImage(pathToAppImage))
+        qWarning() << "Failed to record opened AppImage:" << pathToAppImage;
+
+    const auto integrationDecision = appImageIntegrationDecision(pathToAppImage);
+
+    if (integrationDecision == AppImageIntegrationDecision::DoNotIntegrate)
         return runAppImage(pathToAppImage, appImageArgv.size(), appImageArgv.data());
-    }
 
     // check for X-AppImage-Integrate=false
     auto shallNotBeIntegrated = appimage_shall_not_be_integrated(pathToAppImage.toStdString().c_str());
     if (shallNotBeIntegrated < 0)
-        std::cerr << "AppImageLauncher error: appimage_shall_not_be_integrated() failed (returned "
+        std::cerr << "AppImage Controller error: appimage_shall_not_be_integrated() failed (returned "
                   << shallNotBeIntegrated << ")" << std::endl;
     else if (shallNotBeIntegrated > 0)
         return runAppImage(pathToAppImage, appImageArgv.size(), appImageArgv.data());
@@ -303,7 +306,7 @@ int main(int argc, char** argv) {
     // ignore terminal apps (fixes #2)
     auto isTerminalApp = appimage_is_terminal_app(pathToAppImage.toStdString().c_str());
     if (isTerminalApp < 0)
-        std::cerr << "AppImageLauncher error: appimage_is_terminal_app() failed (returned " << isTerminalApp << ")"
+        std::cerr << "AppImage Controller error: appimage_is_terminal_app() failed (returned " << isTerminalApp << ")"
                   << std::endl;
     else if (isTerminalApp > 0)
         return runAppImage(pathToAppImage, appImageArgv.size(), appImageArgv.data());
@@ -330,6 +333,13 @@ int main(int argc, char** argv) {
             return runAppImage(pathToIntegratedAppImage, appImageArgv.size(), appImageArgv.data());
         }
     };
+
+    // if the user opted out of the "ask move" thing, we can just run the AppImage
+    if (integrationDecision == AppImageIntegrationDecision::Undecided &&
+        config->contains("AppImageLauncher/ask_to_move") &&
+        !config->value("AppImageLauncher/ask_to_move").toBool()) {
+        return runAppImage(pathToAppImage, appImageArgv.size(), appImageArgv.data());
+    }
 
     // after checking whether the AppImage can/must be run without integrating it, we now check whether it actually
     // has been integrated already
@@ -419,6 +429,9 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (integrationDecision == AppImageIntegrationDecision::Integrate)
+        return integrateAndRunAppImage();
+
     QString integratedAppImagesDestinationPath = integratedAppImagesDestination().path();
     auto integrationDialog = new IntegrationDialog(pathToAppImage, integratedAppImagesDestinationPath);
     integrationDialog->show();
@@ -428,6 +441,16 @@ int main(int argc, char** argv) {
 
     if (integrationDialog->result() == QDialog::Rejected)
         return 0;
+
+    if (integrationDialog->rememberChoice()) {
+        const auto choice = integrationDialog->getResultAction() == IntegrationDialog::IntegrateAndRun
+                                ? AppImageIntegrationDecision::Integrate
+                                : AppImageIntegrationDecision::DoNotIntegrate;
+        if (!setAppImageIntegrationDecision(pathToAppImage, choice)) {
+            displayError(QObject::tr("Could not save the integration choice for %1").arg(pathToAppImage));
+            return 1;
+        }
+    }
 
     switch (integrationDialog->getResultAction()) {
         case IntegrationDialog::IntegrateAndRun:
@@ -439,4 +462,3 @@ int main(int argc, char** argv) {
             return 1;
     }
 }
-

@@ -3,6 +3,7 @@
 
 // library headers
 #include <QDirIterator>
+#include <QFileInfo>
 
 // local headers
 #include "daemon.h"
@@ -25,12 +26,9 @@ namespace appimagelauncher::daemon {
             if (newDirs.empty()) {
                 qCDebug(daemonCat) << "No new directories to watch detected";
             } else {
-                qCInfo(daemonCat) << "Discovered new directories to watch, integrating existing AppImages initially";
+                qCInfo(daemonCat) << "Discovered new directories to watch, recording existing AppImages";
 
                 initialSearchForAppImages(newDirs);
-
-                // (re-)integrate all AppImages at once
-                _worker->executeDeferredOperations();
             }
         });
 
@@ -50,9 +48,6 @@ namespace appimagelauncher::daemon {
              }
          });
 
-        // (re-)integrate all AppImages at once
-        _worker->executeDeferredOperations();
-
         _updateWatchedDirsTimer->setInterval(UPDATE_WATCHED_DIRECTORIES_INTERVAL);
         connect(
             _updateWatchedDirsTimer, &QTimer::timeout, this,[this]() {
@@ -62,8 +57,11 @@ namespace appimagelauncher::daemon {
         _updateWatchedDirsTimer->start();
 
 
-        connect(_watcher, &FileSystemWatcher::fileChanged, _worker, &Worker::scheduleForIntegration,
-                Qt::QueuedConnection);
+        connect(_watcher, &FileSystemWatcher::fileChanged, this, [this](const QString& path) {
+            if (QFileInfo(path).isFile() && isAppImage(path) && !recordDetectedAppImage(path)) {
+                qCWarning(daemonCat) << "Failed to record detected AppImage:" << path;
+            }
+        }, Qt::QueuedConnection);
         connect(_watcher, &FileSystemWatcher::fileRemoved, _worker, &Worker::scheduleForUnintegration,
                Qt::QueuedConnection);
     }
@@ -74,7 +72,7 @@ namespace appimagelauncher::daemon {
 
 
     void Daemon::initialSearchForAppImages(const QDirSet& dirsToSearch) {
-        // initial search for AppImages; if AppImages are found, they will be integrated, unless they already are
+        // Record AppImages found during initial directory scans.
         qCInfo(daemonCat) << "Searching for existing AppImages";
 
         if (dirsToSearch.empty()) {
@@ -100,17 +98,9 @@ namespace appimagelauncher::daemon {
                     if (isAppImage) {
                         // at application startup, we don't want to integrate AppImages that have been integrated already,
                         // as that it slows down very much
-                        // the integration will be updated as soon as any of these AppImages is run with AppImageLauncher
                         qCInfo(daemonCat) << "Found AppImage: " << path;
-
-                        if (!appimage_is_registered_in_system(path.toStdString().c_str())) {
-                            qCInfo(daemonCat) << "AppImage is not integrated yet, integrating";
-                            _worker->scheduleForIntegration(path);
-                        } else if (!desktopFileHasBeenUpdatedSinceLastUpdate(path)) {
-                            qCInfo(daemonCat) << "AppImage has been integrated already but needs to be reintegrated";
-                            _worker->scheduleForIntegration(path);
-                        } else {
-                            qCInfo(daemonCat) << "AppImage integrated already, skipping";
+                        if (!recordDetectedAppImage(path)) {
+                            qCWarning(daemonCat) << "Failed to record detected AppImage:" << path;
                         }
                     }
                 }

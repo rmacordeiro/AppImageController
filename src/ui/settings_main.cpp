@@ -8,15 +8,16 @@
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
-    QApplication::setApplicationDisplayName("AppImageLauncher Settings");
-    QApplication::setWindowIcon(QIcon(":/AppImageLauncher.svg"));
+    QApplication::setApplicationDisplayName("AppImage Controller Settings");
+    QApplication::setApplicationVersion(APPIMAGELAUNCHER_VERSION);
+    QApplication::setWindowIcon(QIcon(":/AppImageController.svg"));
 
     TranslationManager mgr(app);
 //
 //    // we ship some very basic fallbacks for icons used in the settings dialog
 //    // this should fix missing icons on some distros
 
-    SettingsDialog dialog;
+    SettingsDialog dialog(mgr);
 
     setUpFallbackIconPaths(&dialog);
 

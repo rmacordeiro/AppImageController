@@ -1,26 +1,29 @@
-# AppImageLauncher
+# AppImage Controller
 makes your Linux desktop AppImage ready™
 <p align="center">
-<img src="https://github.com/TheAssassin/AppImageLauncher/raw/master/resources/icons/hicolor/128x128/apps/AppImageLauncher.png"/>
+<img src="resources/icons/appimage-controller-icon.svg" alt="AppImage Controller logo"/>
 </p>
+This application is a clone of the AppImageLauncher developed by [TheAssassin](https://github.com/TheAssassin/AppImageLauncher).
 
 Integrate AppImages to your application launcher with one click, and manage, update and remove them from there.
 Double-click AppImages to open them, without having to make them executable first.
 
-AppImageLauncher plays well with other applications managing AppImages, for example app stores.
+AppImage Controller plays well with other applications managing AppImages, for example app stores.
 However, it doesn't depend on any of those, and can run completely standalone.
 
 <p align="center">
 <img src="https://github.com/TheAssassin/AppImageLauncher/raw/master/resources/doc/screenshot.png"/>
 </p>
 
-> ### :smiley: Info on how to install and use AppImageLauncher on the [wiki](https://github.com/TheAssassin/AppImageLauncher/wiki).
+> ### :smiley: About AppImage Controller
 
-AppImageLauncher is a novel and unique solution of integrating with the system. It intercepts all attempts to open an AppImage to provide its integration features.
+AppImage Controller integrates AppImages with the system. It intercepts attempts to open an AppImage to provide its integration features.
 
-Being the launcher for AppImages, AppImageLauncher can control how the system treats AppImages. It integrates them into the system, provides helpers for updating or removing AppImages, and a lot more.
+AppImage Controller can control how the system treats AppImages. It integrates them into the system and provides helpers for updating or removing them.
 
-On their first execution (i.e., if they have not been integrated yet), it displays a dialog prompting the user whether to run the AppImage once, or move it to a predefined location and adding it to the application menus, launchers, etc.
+When an AppImage is opened for the first time, AppImage Controller asks whether to integrate it or run it once. The dialog can remember that choice for the application, so later versions with the same embedded desktop identity follow the same preference.
+
+The optional detection daemon records AppImages found in its watched directories and lists them in the **Detected AppImages** tab in AppImage Controller Settings. Detection does not integrate or otherwise modify discovered AppImages. Undecided items are marked as needing a decision; choose **Integrate** or **Do not integrate** in the list, or make a choice the next time the AppImage is opened. Preferences persist across sessions. Cross-version preferences require a single, unambiguous identity from embedded desktop metadata; otherwise, the choice applies only to that file path.
 
 
 ## Features
@@ -30,8 +33,25 @@ On their first execution (i.e., if they have not been integrated yet), it displa
 This core feature allows you to integrate AppImages you download into your application menu or launcher, to make it easier for you to launch them. It also takes care of moving them into a central location, where you can find them later.
 Furthermore, it sets up the update and removal entries in the launcher for you.
 
-AppImages use the term "desktop integration", as they're not "installed" in the traditional sense. They remain single, self-contained executable files. AppImageLauncher and other tools extract and patch the [desktop entry](https://specifications.freedesktop.org/desktop-entry-spec/latest/) as well as the related [icons](https://specifications.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html) into the relevant locations.
+AppImages use the term "desktop integration", as they're not "installed" in the traditional sense. They remain single, self-contained executable files. AppImage Controller and other tools extract and patch the [desktop entry](https://specifications.freedesktop.org/desktop-entry-spec/latest/) as well as the related [icons](https://specifications.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html) into the relevant locations. Integrated files keep their original filename (without an added checksum). A trailing semantic version in the desktop entry's application name is omitted from the menu shortcut.
 More information on desktop integration can be found in the [AppImage docs](https://docs.appimage.org/reference/desktop-integration.html).
+
+### AppImage detection and remembered choices
+
+When enabled, the detection daemon scans its configured watched directories and tracks AppImages it finds. Open **AppImage Controller Settings → Detected AppImages** to see the current list:
+
+- **New - decision needed** means no integration preference has been saved for that AppImage.
+- **Integrate** integrates the selected AppImage and saves that preference.
+- **Do not integrate** saves a preference to run the AppImage without integrating it when opened.
+- **Launch** runs the selected AppImage directly with its saved launch arguments. **Delete from disk** asks for confirmation, then removes the integration (if any), deletes the AppImage file and forgets it. If an AppImage already has a desktop entry that this tool did not create, editing its launch arguments shows a warning: that entry is left untouched and the arguments are only used by **Launch**. **Clear decision** removes a saved preference, so the app is undecided again.
+
+The **Detected AppImages** table shows each app's name, saved action, file location, and **Launch Arguments**. The Location column is sized to its contents; if the complete paths do not fit on screen, use the horizontal scrollbar. Double-click the Launch Arguments cell to edit the optional arguments passed to the AppImage from its desktop entry (for example, `-f -v` or `--profile "Work Profile"`). Arguments are saved across sessions and, when embedded desktop metadata provides an unambiguous application identity, are reused across versions. For an already integrated AppImage, a valid edit regenerates its desktop entry and refreshes desktop caches immediately; if updating the integration fails, the previous arguments are restored. For an unintegrated AppImage, the saved arguments are applied when it is integrated. The Settings window opens at a larger default size and remembers its last size and position. It is scanned when Settings opens and only rescanned when **Refresh** is clicked; selecting another tab or taking an action does not scan watched folders. Opening an AppImage also records it. The table covers daemon-watched directories, not every location on the computer. Discovery itself never integrates, moves, or changes permissions on an AppImage. Opening an undecided AppImage uses the usual integrate-or-run-once dialog; checking **Remember my choice for this application** saves the choice for future sessions. The global setting to disable the prompt still applies to apps without a saved choice.
+
+The **AppImage Controller** tab includes a language selector for the languages shipped with the project. The selection is saved and used by the Settings window and other AppImage Controller UI tools on their next start; **System default** follows the desktop locale.
+
+In Settings, **Integrate** immediately checks whether integration is supported, moves the AppImage to the configured integration folder (or offers copying if moving fails), installs its desktop entry and icons, updates desktop caches, and saves the integrate preference after successful integration. If a same-named destination already exists, the user is asked whether to overwrite it. **Do not integrate** saves that preference and, if the AppImage is integrated, removes its desktop entry and system integration (the AppImage file itself is left in place). Integrating an AppImage that already has a desktop entry does not create another one: all application directories (user and system) are scanned for any `.desktop` file, from this tool or any other, whose `Exec`/`TryExec` launches that AppImage, and if one is found no new entry is created. Furthermore, an existing entry for the same AppImage (matched by recorded path, embedded application ID, or launch command, even under a different file name) never adds a "(1)" suffix to the menu name. Only the **Launch Arguments** column is editable; its text is appended to the desktop entry's launch command exactly as typed. The Settings window is a regular top-level window, so it can be minimized and maximized, and shows the application logo and version in the tab bar's top-right corner. **Clear decision** removes the saved preference so the app is undecided again; it does not undo an existing integration. The buttons update the displayed saved action without rescanning watched folders.
+
+Preferences are matched using a single, unambiguous identity found in the AppImage's embedded desktop entry. If there is no reliable identity, the preference is associated only with the detected file path and cannot be carried over to another version or renamed file. Decisions remain saved when a file is removed from the detected list.
 
 
 ### Update management
@@ -49,17 +69,6 @@ If you choose to do so, the desktop integration is undone, and the file is remov
 
 The packages ship with a CLI tool called `ail-cli`, providing basic operations in the terminal, for automation in scripts etc. As of February 2020, only integration and unintegration are supported. More features planned!
 
-
-## Differences between regular and Lite version
-
-From version 1.4.0, there's a *Lite* edition of AppImageLauncher.
-It provides all of AppImageLauncher you can get without having root access to your computer. AppImageLauncher Lite is shipped as an AppImage, which can be installed by users from the command-line.
-Enter `./appimagelauncher-lite...AppImage install`. in a terminal, and it integrates itself in the users' home directory.
-
-**Traditional packages are highly recommended *if possible*, as they provide many more features and provide a much better overall experience.**
-
-*Note: if you're interested in a GUI installer, please consider sending a pull request. More information in [#243](https://github.com/TheAssassin/AppImageLauncher/issues/243).*
-
 ## About
 
 Currently, desktop environments consider executables a security risk, and would rather have users use the app stores they include.
@@ -70,62 +79,15 @@ Therefore, system-side ways have been developed to perform the desktop integrati
 One of the first solutions was [appimaged](https://github.com/AppImage/appimaged), a daemon users could install to perform everything automagically in the background, without notifying the user in any way.
 It scans a predefined set of directories including `~/Downloads` and `~/.bin`, making recognized AppImages executable and then performing the desktop integration. Those operations and monitoring produced a lot of file I/O, so were rather inefficent. Also, many users don't like the lack of control. The approach also opens attack vectors and thus can be considered a security hazard, as a vulnerability discovered in appimaged recently has shown.
 
-
-## As seen in
-
-### :movie_camera: Tutorials:
-
-* [Eric Adams](https://invidio.us/watch?v=D2WA2zdLvVk)
-
-
-### :sound: Podcasts:
-
-* [DLN Xtend 11h](ttps://dlnxtend.com/11)
-  + [Invidious](https://invidio.us/watch?v=yaZygqyN_KE)
-* [DLN Xtend 14](https://dlnxtend.com/14)
-  + [Invidious](https://invidio.us/watch?v=QCkJ74kOlGQ)
-
-
-### :page_facing_up: Articles
-
-  * [Linux Uprising](https://www.linuxuprising.com/2018/04/easily-run-and-integrate-appimage-files.html) (English)
-  * [Linux-OS.net](https://linux-os.net/appimagelauncher-ejecuta-e-integra-facilmente-aplicaciones-en-appimage/) (Spanish)
-    + Same article also available [here](https://blog.desdelinux.net/appimagelauncher-ejecuta-e-integra-facilmente-aplicaciones-en-appimage/).
-  * [Edvaldo Brito](https://www.edivaldobrito.com.br/integrador-appimagelauncher-no-linux/) (Portuguese)
-  * [przystajnik](https://404.g-net.pl/2018/08/appimagelauncher/) (Polish)
-  * [Linux Mint Magyar Közösség](https://linuxmint.hu/blog/2018/12/appimage) (Hungarian)
-  * [FreeYourDesktop](https://medium.com/@freeyourdesktopblog/install-manage-appimages-with-appimagelauncher-2a2078c55f37) (English)
-    + Please note that AppImageLauncher could *not* be "installed" via AppImage at that time, only recently was a Lite version added, that now can be installed from an AppImage (more info to follow.)
-  * [Pardus forum](https://forum.pardus.org.tr/t/appimagelauncher-tek-tiklama-ile-appimage-sisteminizle-butunlestiriniz/11275) (Turkish)
-  * [QuanTriMang.com](https://quantrimang.com/cong-nghe/them-appimage-vao-menu-he-thong-linux-193765) (Vietnamese)
-  * [RealLinuxUser](https://www.reallinuxuser.com/15-best-things-to-do-after-installing-zorin-os-15/) (English)
-  * [manjaro.site](https://manjaro.site/how-to-install-appimage-launcher-on-ubuntu-19-04/) (English)
-  * [CubicleNate's Techpad](https://cubiclenate.com/2020/01/09/appimagelauncher-appimage-manager-on-opensuse/) (English)
-    + See also: [CubicleNate's Techpad](https://cubiclenate.com/2020/01/10/noodlings-lighting-the-emby-server-with-kdenlive/)
-  * [CHRIS R MILLER](https://chrisrmiller.com/2019/05/29/integrate-appimages-into-your-linux-distro/) (English)
-  * [doLys Forum](https://dolys.fr/forums/topic/gerer-les-appimage-sous-linux/) (French)
-  * [LINUXUSER](https://linux-user.gr/t/eykolh-chrhsh-efarmogwn-appimage/2066) (Greek)
-
+**Traditional packages are highly recommended *if possible*, as they provide many more features and provide a much better overall experience.** The full build also produces an AppImage alongside the Debian and RPM packages; this AppImage is a portable build artifact, while the native packages provide the system integration required for the complete experience.
 
 ## Installation
 
 ### System-wide Installation
 
-AppImageLauncher integrates deeply into the system. Therefore, an installation via native system packages is the preferred way to install AppImageLauncher. This way, AppImageLauncher's package can perform the necessary steps to have your system use it for all AppImage invocations.
+AppImage Controller integrates deeply into the system. Therefore, an installation via native system packages is the preferred way to install AppImage Controller. This way, AppImage Controller's package can perform the necessary steps to have your system use it for all AppImage invocations.
 
-Compatibility table (likely incomplete.) Please, feel free to open PRs to add distributions.
-
-| Release filename | Build system | Compatible distributions (incomplete) |
-| ---------------- | ------------ | ------------------------------------- |
-| `appimagelauncher-<version>.xenial_(amd64,i386).deb` | Ubuntu Xenial | Ubuntu Xenial (16.04), Debian Stretch (9), Netrunner 17.01 |
-| `appimagelauncher-<version>.bionic_(amd64,i386).deb` | Ubuntu Bionic | Ubuntu Bionic (18.04), Ubuntu Disco (19.04), Ubuntu Eoan (19.10) and newer, Debian buster (10) and newer, Netrunner 19.01, 19.08 and newer, LMDE 6 "Faye" |
-| ~~`appimagelauncher-<version>.disco_(amd64,i386).deb`~~  | ~~Ubuntu Disco~~  | ~~Ubuntu Disco (19.04)~~ |
-| ~~`appimagelauncher-<version>.eoan_(amd64,i386).deb`~~   | ~~Ubuntu Eoan~~   | ~~Ubuntu Eoan (19.10) and newer~~ |
-| ~~`appimagelauncher-<version>.buster_(amd64,i386).deb`~~ | ~~Debian Buster~~ | ~~Debian Buster (10) and newer, Netrunner 19.01 and 19.08~~ |
-| `appimagelauncher-<version>.(i386,x86_64).rpm`       | Ubuntu Xenial | openSUSE Leap 42 and newer, possibly openSUSE Tumbleweed, SUSE Enterprise Linux, RHEL 7, CentOS 7 |
-
-  - Ubuntu Trusty (14.04) and newer
-    - **Important:** Ubuntu Bionic (and newer) broke with the backwards compatibility of its `libcurl` packages, therefore users of these systems need to install the special `bionic` package
+  - Ubuntu 24.04 and newer
   - Debian stable (Jessie, 8) and newer
   - Netrunner 17 and newer
   - openSUSE Leap 42 and newer
@@ -133,15 +95,7 @@ Compatibility table (likely incomplete.) Please, feel free to open PRs to add di
 
 The installation of packages on systems with a set of packages similar to one of the listed ones (e.g., Linux Mint, Fedora, etc.) should work as well.
 
-Manjaro and Netrunner Rolling users can install AppImageLauncher with a distribution-provided package called `appimagelauncher`.
-
-Arch Linux, Manjaro, Antergos and Netrunner Rolling users can use AUR to install AppImageLauncher by installing [appimagelauncher](https://aur.archlinux.org/packages/appimagelauncher) or [appimagelauncher-git](https://aur.archlinux.org/packages/appimagelauncher-git) (possibly broken, see [#574](https://github.com/TheAssassin/AppImageLauncher/issues/574)) (thanks @NuLogicSystems for setting up the build). 
-
-Other systems derived from the listed ones, such as for instance Linux Mint (Ubuntu), should support AppImageLauncher as well.
-If they don't, please don't hesitate to create an issue.
-
-**Note:** Feel free to request support for other distributions by [opening an issue](https://github.com/TheAssassin/AppImageLauncher/issues/new).
-
+Other systems derived from the listed ones, such as for instance Linux Mint (Ubuntu), should support AppImage Controller as well.
 
 ### Build from source
 
@@ -150,4 +104,18 @@ Build instructions in [BUILD.md](BUILD.md).
 
 ## Background
 
-Technical details about how AppImageLauncher registers itself on [this wiki page](https://github.com/TheAssassin/AppImageLauncher/wiki/Idea).
+This application is a clone of the AppImageLauncher developed by [TheAssassin](https://github.com/TheAssassin/AppImageLauncher).
+
+## Support
+
+If you enjoy this extension, consider buying me a tea 🍵 (I’m not really a coffee person :D)
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/rmacordeiro">
+    <img src="https://github.com/user-attachments/assets/3b58a7fc-e605-4742-94e9-0bf3144c5021" width="200"/>
+  </a>
+</p>
+
+### Regenerating icons
+
+`resources/icons/generate-icons.sh` renders the logo (`appimage-controller-icon.svg`) to `hicolor/` PNG sizes using Inkscape, or `rsvg-convert` if Inkscape is not installed. The logo SVG avoids masks and SVG2-only syntax so it also renders correctly in Qt.

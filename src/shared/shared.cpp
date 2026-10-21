@@ -4,6 +4,8 @@
 #include <memory>
 #include <sstream>
 #include <tuple>
+#include <cstdlib>
+#include <algorithm>
 extern "C" {
     #include <appimage/appimage.h>
     #include <glib.h>
@@ -18,6 +20,7 @@ extern "C" {
 #include <QIcon>
 #include <QtDBus>
 #include <QDirIterator>
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -30,6 +33,7 @@ extern "C" {
 #include <QSet>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QFileInfo>
 #include <QWindow>
 #include <QPushButton>
 #include <QPixmap>
@@ -480,32 +484,8 @@ QDirSet daemonDirectoriesToWatch(const QSettings* config) {
 }
 
 QString buildPathToIntegratedAppImage(const QString& pathToAppImage) {
-    // if type 2 AppImage, we can build a "content-aware" filename
-    // see #7 for details
-    auto digest = getAppImageDigestMd5(pathToAppImage);
-
     const QFileInfo appImageInfo(pathToAppImage);
-
-    QString baseName = appImageInfo.completeBaseName();
-
-    // if digest is available, append a separator
-    if (!digest.isEmpty()) {
-        const auto digestSuffix = "_" + digest;
-
-        // check whether digest is already contained in filename
-        if (!pathToAppImage.contains(digestSuffix))
-            baseName += "_" + digest;
-    }
-
-    auto fileName = baseName;
-
-    // must not use completeSuffix() in combination with completeBasename(), otherwise the final filename is composed
-    // incorrectly
-    if (!appImageInfo.suffix().isEmpty()) {
-        fileName += "." + appImageInfo.suffix();
-    }
-
-    return integratedAppImagesDestination().path() + "/" + fileName;
+    return integratedAppImagesDestination().filePath(appImageInfo.fileName());
 }
 
 std::map<std::string, std::string> findCollisions(const QString& currentNameEntry) {
@@ -616,16 +596,18 @@ bool installDesktopFileAndIcons(const QString& pathToAppImage, bool resolveColli
         return false;
     }
 
-    const auto* desktopFilePath = appimage_registered_desktop_file_path(pathToAppImage.toStdString().c_str(), nullptr, false);
+    const auto* registeredDesktopFilePath =
+        appimage_registered_desktop_file_path(pathToAppImage.toStdString().c_str(), nullptr, false);
 
     // sanity check -- if the file doesn't exist, the function returns NULL
-    if (desktopFilePath == nullptr) {
+    if (registeredDesktopFilePath == nullptr) {
         displayError(QObject::tr("Failed to find integrated desktop file"));
         return false;
     }
 
     // check that file exists
-    if (!QFile(desktopFilePath).exists()) {
+    const QString registeredDesktopFile = QString::fromUtf8(registeredDesktopFilePath);
+    if (!QFile(registeredDesktopFile).exists()) {
         displayError(QObject::tr("Couldn't find integrated AppImage's desktop file"));
         return false;
     }
@@ -650,23 +632,73 @@ bool installDesktopFileAndIcons(const QString& pathToAppImage, bool resolveColli
         displayError(QString::fromStdString(ss.str()));
     };
 
-    if (!g_key_file_load_from_file(desktopFile.get(), desktopFilePath, flags, error.get())) {
+    if (!g_key_file_load_from_file(desktopFile.get(), registeredDesktopFile.toUtf8().constData(), flags, error.get())) {
         handleError();
         return false;
     }
 
-    const auto* nameEntry = g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME, error.get());
-
-    if (nameEntry == nullptr) {
+    auto* originalNameEntry =
+        g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME, error.get());
+    const auto hasOriginalName = originalNameEntry != nullptr;
+    if (!hasOriginalName)
         displayWarning(QObject::tr("AppImage has invalid desktop file"));
+
+    const QString originalName = !hasOriginalName
+                                     ? QFileInfo(pathToAppImage).completeBaseName()
+                                     : QString::fromUtf8(originalNameEntry);
+    g_free(originalNameEntry);
+    static const QRegularExpression versionSuffix(
+        R"([\s_-]*\(?\s*v?\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z.-]+)?\s*\)?$)",
+        QRegularExpression::CaseInsensitiveOption);
+    auto cleanName = originalName;
+    cleanName.remove(versionSuffix);
+    cleanName = cleanName.trimmed();
+    const auto nameEntry = (cleanName.isEmpty() ? originalName : cleanName).toUtf8();
+    if (!hasOriginalName || cleanName != originalName) {
+        g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME,
+                              nameEntry.constData());
     }
+
+    std::shared_ptr<char> appImageId(
+        g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImage-ID", nullptr), g_free);
+    const auto integrationIdentity = appImageId
+                                         ? QString::fromUtf8(appImageId.get()).toCaseFolded()
+                                         : "path:" + QFileInfo(pathToAppImage).absoluteFilePath();
 
     if (resolveCollisions) {
         // TODO: support multilingual collisions
-        auto collisions = findCollisions(nameEntry);
+        auto collisions = findCollisions(nameEntry.constData());
 
         // make sure to remove own entry
-        collisions.erase(collisions.find(desktopFilePath));
+        collisions.erase(registeredDesktopFile.toStdString());
+        const auto absoluteAppImagePath = QFileInfo(pathToAppImage).absoluteFilePath();
+        const auto ownAppImageId = appImageId ? QString::fromUtf8(appImageId.get()) : QString{};
+        for (auto collision = collisions.begin(); collision != collisions.end();) {
+            std::shared_ptr<GKeyFile> existingDesktop(g_key_file_new(), gKeyFileDeleter);
+            bool sameApplication = false;
+            if (g_key_file_load_from_file(existingDesktop.get(), collision->first.c_str(), G_KEY_FILE_NONE, nullptr)) {
+                const auto getValue = [&existingDesktop](const char* key) {
+                    std::shared_ptr<char> value(
+                        g_key_file_get_string(existingDesktop.get(), G_KEY_FILE_DESKTOP_GROUP, key, nullptr), g_free);
+                    return value ? QString::fromUtf8(value.get()) : QString{};
+                };
+                const auto existingIdentity = getValue("X-AppImageController-ID");
+                const auto existingPath = getValue("X-AppImageController-AppImage");
+                const auto existingAppImageId = getValue("X-AppImage-ID");
+                const auto existingExec = getValue(G_KEY_FILE_DESKTOP_KEY_EXEC);
+                const auto existingTryExec = getValue(G_KEY_FILE_DESKTOP_KEY_TRY_EXEC);
+                sameApplication =
+                    (!existingIdentity.isEmpty() && existingIdentity == integrationIdentity) ||
+                    (!existingPath.isEmpty() && QFileInfo(existingPath).absoluteFilePath() == absoluteAppImagePath) ||
+                    (!ownAppImageId.isEmpty() && existingAppImageId == ownAppImageId) ||
+                    existingTryExec == absoluteAppImagePath ||
+                    existingExec.contains(absoluteAppImagePath);
+            }
+            if (sameApplication)
+                collision = collisions.erase(collision);
+            else
+                ++collision;
+        }
 
         if (!collisions.empty()) {
             // collisions are resolved like in the filesystem: a monotonically increasing number in brackets is
@@ -697,9 +729,68 @@ bool installDesktopFileAndIcons(const QString& pathToAppImage, bool resolveColli
                 }
             }
 
-            auto newName = QString(nameEntry) + " (" + QString::number(currentNumber) + ")";
+            auto newName = QString::fromUtf8(nameEntry.constData()) + " (" + QString::number(currentNumber) + ")";
             g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME, newName.toStdString().c_str());
         }
+    }
+
+    std::shared_ptr<char> execEntry(
+        g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_EXEC, error.get()),
+        g_free);
+    if (!execEntry) {
+        displayError(QObject::tr("AppImage desktop entry has no launch command"));
+        return false;
+    }
+    std::shared_ptr<char> baseExecEntry(
+        g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImageController-BaseExec", nullptr),
+        g_free);
+    const QString baseExec = baseExecEntry ? QString::fromUtf8(baseExecEntry.get()) : QString::fromUtf8(execEntry.get());
+    g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImageController-BaseExec",
+                          baseExec.toUtf8().constData());
+
+    auto launchArguments = appImageLaunchArguments(pathToAppImage).trimmed();
+    launchArguments.replace("%", "%%");
+    const auto execWithArguments = launchArguments.isEmpty() ? baseExec : baseExec + " " + launchArguments;
+    g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_EXEC,
+                          execWithArguments.toUtf8().constData());
+
+    std::shared_ptr<char> nameForFileEntry(
+        g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_NAME, nullptr),
+        g_free);
+    const auto nameForFile = nameForFileEntry ? QString::fromUtf8(nameForFileEntry.get()) : QString{};
+    auto safeDesktopName = nameForFile.trimmed();
+    safeDesktopName.replace(QRegularExpression(R"([/\\:*?"<>|\x00-\x1f])"), "_");
+    if (safeDesktopName.isEmpty())
+        safeDesktopName = QFileInfo(pathToAppImage).completeBaseName();
+
+    g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImageController-AppImage",
+                          QFileInfo(pathToAppImage).absoluteFilePath().toUtf8().constData());
+    g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImageController-ID",
+                          integrationIdentity.toUtf8().constData());
+
+    const auto desktopDirectory = QFileInfo(registeredDesktopFile).absolutePath();
+    auto finalDesktopFile = QDir(desktopDirectory).filePath(safeDesktopName + ".desktop");
+    for (int suffix = 2; QFileInfo::exists(finalDesktopFile); ++suffix) {
+        std::shared_ptr<GKeyFile> existingDesktop(g_key_file_new(), gKeyFileDeleter);
+        const auto existingLoaded = g_key_file_load_from_file(existingDesktop.get(), finalDesktopFile.toUtf8().constData(),
+                                                              G_KEY_FILE_NONE, nullptr);
+        std::shared_ptr<char> existingIdentity(
+            existingLoaded ? g_key_file_get_string(existingDesktop.get(), G_KEY_FILE_DESKTOP_GROUP,
+                                                   "X-AppImageController-ID", nullptr)
+                           : nullptr,
+            g_free);
+        std::shared_ptr<char> existingPath(
+            existingLoaded ? g_key_file_get_string(existingDesktop.get(), G_KEY_FILE_DESKTOP_GROUP,
+                                                   "X-AppImageController-AppImage", nullptr)
+                           : nullptr,
+            g_free);
+        if ((existingIdentity && QString::fromUtf8(existingIdentity.get()) == integrationIdentity) ||
+            (existingPath && QString::fromUtf8(existingPath.get()) ==
+                                 QFileInfo(pathToAppImage).absoluteFilePath())) {
+            break;
+        }
+        finalDesktopFile = QDir(desktopDirectory).filePath(
+            safeDesktopName + " (" + QString::number(suffix) + ").desktop");
     }
 
     auto convertToCharPointerList = [](const std::vector<std::string>& stringList) {
@@ -882,14 +973,18 @@ bool installDesktopFileAndIcons(const QString& pathToAppImage, bool resolveColli
     g_key_file_set_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImageLauncher-Version", version.c_str());
 
     // save desktop file to disk
-    if (!g_key_file_save_to_file(desktopFile.get(), desktopFilePath, error.get())) {
+    if (!g_key_file_save_to_file(desktopFile.get(), finalDesktopFile.toUtf8().constData(), error.get())) {
         handleError();
         return false;
+    }
+    if (registeredDesktopFile != finalDesktopFile && QFileInfo::exists(registeredDesktopFile) &&
+        !QFile::remove(registeredDesktopFile)) {
+        qWarning() << "Could not remove generated AppImage desktop entry:" << registeredDesktopFile;
     }
 
     // make desktop file executable ("trustworthy" to some DEs)
     // TODO: handle this in libappimage
-    makeExecutable(desktopFilePath);
+    makeExecutable(finalDesktopFile);
 
     // notify KDE/Plasma about icon change
     {
@@ -899,6 +994,11 @@ bool installDesktopFileAndIcons(const QString& pathToAppImage, bool resolveColli
     }
 
     return true;
+}
+
+namespace {
+    QString findControllerDesktopFile(const QString& pathToAppImage);
+    QString findAnyDesktopFileForAppImage(const QString& pathToAppImage);
 }
 
 bool updateDesktopFileAndIcons(const QString& pathToAppImage) {
@@ -967,8 +1067,16 @@ IntegrationState integrateAppImage(const QString& pathToAppImage, const QString&
         }
     }
 
-    if (!installDesktopFileAndIcons(pathToIntegratedAppImage))
+    // do not create another desktop entry if one already exists for this AppImage
+    if (findAnyDesktopFileForAppImage(pathToIntegratedAppImage).isEmpty() &&
+        !installDesktopFileAndIcons(pathToIntegratedAppImage))
         return INTEGRATION_FAILED;
+
+    if (QFileInfo(pathToAppImage).absoluteFilePath() != QFileInfo(pathToIntegratedAppImage).absoluteFilePath()) {
+        forgetDetectedAppImage(pathToAppImage);
+        if (!recordDetectedAppImage(pathToIntegratedAppImage))
+            qWarning() << "Failed to update detected AppImage path after integration:" << pathToIntegratedAppImage;
+    }
 
     return INTEGRATION_SUCCESSFUL;
 }
@@ -1036,8 +1144,64 @@ QString getAppImageDigestMd5(const QString& path) {
     return hexDigestStr;
 }
 
+namespace {
+    QString findControllerDesktopFile(const QString& pathToAppImage) {
+        const auto applicationsDirectory =
+            QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/applications";
+        const auto absolutePath = QFileInfo(pathToAppImage).absoluteFilePath();
+        QDirIterator iterator(applicationsDirectory, {"*.desktop"}, QDir::Files);
+        while (iterator.hasNext()) {
+            const auto candidate = iterator.next();
+            std::shared_ptr<GKeyFile> desktopFile(g_key_file_new(), gKeyFileDeleter);
+            if (!g_key_file_load_from_file(desktopFile.get(), candidate.toUtf8().constData(), G_KEY_FILE_NONE, nullptr))
+                continue;
+            std::shared_ptr<char> marker(
+                g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, "X-AppImageController-AppImage",
+                                      nullptr),
+                g_free);
+            if (marker && QFileInfo(QString::fromUtf8(marker.get())).absoluteFilePath() == absolutePath)
+                return candidate;
+        }
+        return {};
+    }
+
+    // Looks for any desktop entry (created by this tool or any other) that launches the given AppImage
+    QString findAnyDesktopFileForAppImage(const QString& pathToAppImage) {
+        const auto absolutePath = QFileInfo(pathToAppImage).absoluteFilePath();
+        auto directories = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
+        for (const auto& directory : directories) {
+            QDirIterator iterator(directory, {"*.desktop"}, QDir::Files, QDirIterator::Subdirectories);
+            while (iterator.hasNext()) {
+                const auto candidate = iterator.next();
+                std::shared_ptr<GKeyFile> desktopFile(g_key_file_new(), gKeyFileDeleter);
+                if (!g_key_file_load_from_file(desktopFile.get(), candidate.toUtf8().constData(), G_KEY_FILE_NONE,
+                                               nullptr))
+                    continue;
+                const auto getValue = [&desktopFile](const char* key) {
+                    std::shared_ptr<char> value(
+                        g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, key, nullptr), g_free);
+                    return value ? QString::fromUtf8(value.get()) : QString{};
+                };
+                const auto marker = getValue("X-AppImageController-AppImage");
+                const auto tryExec = getValue(G_KEY_FILE_DESKTOP_KEY_TRY_EXEC);
+                const auto exec = getValue(G_KEY_FILE_DESKTOP_KEY_EXEC);
+                if ((!marker.isEmpty() && QFileInfo(marker).absoluteFilePath() == absolutePath) ||
+                    (!tryExec.isEmpty() && QFileInfo(tryExec).absoluteFilePath() == absolutePath) ||
+                    exec.contains(absolutePath))
+                    return candidate;
+            }
+        }
+        return {};
+    }
+}
+
+bool hasExistingDesktopEntry(const QString& pathToAppImage) {
+    return !findAnyDesktopFileForAppImage(pathToAppImage).isEmpty();
+}
+
 bool hasAlreadyBeenIntegrated(const QString& pathToAppImage) {
-    return appimage_is_registered_in_system(pathToAppImage.toStdString().c_str());
+    return !findControllerDesktopFile(pathToAppImage).isEmpty() ||
+           appimage_is_registered_in_system(pathToAppImage.toStdString().c_str());
 }
 
 bool isInDirectory(const QString& pathToAppImage, const QDir& directory) {
@@ -1049,10 +1213,7 @@ bool cleanUpOldDesktopIntegrationResources(bool verbose) {
 
     auto directory = QDir(dirPath);
 
-    QStringList filters;
-    filters << "appimagekit_*.desktop";
-
-    directory.setNameFilters(filters);
+    directory.setNameFilters({"*.desktop"});
 
     for (auto desktopFilePath : directory.entryList()) {
         desktopFilePath = dirPath + "/" + desktopFilePath;
@@ -1064,6 +1225,13 @@ bool cleanUpOldDesktopIntegrationResources(bool verbose) {
         if (!g_key_file_load_from_file(desktopFile.get(), desktopFilePath.toStdString().c_str(), G_KEY_FILE_NONE, nullptr)) {
             continue;
         }
+
+        std::shared_ptr<char> appImageMarker(
+            g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP,
+                                  "X-AppImageController-AppImage", nullptr),
+            g_free);
+        if (appImageMarker == nullptr && !QFileInfo(desktopFilePath).fileName().startsWith("appimagekit_"))
+            continue;
 
         std::shared_ptr<char> execValue(g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, G_KEY_FILE_DESKTOP_KEY_EXEC, nullptr), [](char* p) {
             free(p);
@@ -1085,7 +1253,9 @@ bool cleanUpOldDesktopIntegrationResources(bool verbose) {
         // of the AppImage
         QString appImagePath;
 
-        if (tryExecValue != nullptr) {
+        if (appImageMarker != nullptr) {
+            appImagePath = QString::fromUtf8(appImageMarker.get());
+        } else if (tryExecValue != nullptr) {
             appImagePath = QString(tryExecValue.get());
         } else {
             appImagePath = QString(execValue.get()).split(" ").first();
@@ -1137,9 +1307,41 @@ time_t getMTime(const QString& path) {
 
 bool desktopFileHasBeenUpdatedSinceLastUpdate(const QString& pathToAppImage) {
     const auto ownBinaryPath = getOwnBinaryPath();
+    if (!ownBinaryPath) {
+        qWarning() << "Could not determine AppImage Controller binary path";
+        return false;
+    }
 
-    const auto desktopFilePath = appimage_registered_desktop_file_path(pathToAppImage.toStdString().c_str(), nullptr, false);
-    
+    QString desktopFilePath;
+    const auto applicationsDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/applications";
+    QDirIterator iterator(applicationsDirectory, {"*.desktop"}, QDir::Files);
+    while (iterator.hasNext()) {
+        const auto candidate = iterator.next();
+        std::shared_ptr<GKeyFile> desktopFile(g_key_file_new(), gKeyFileDeleter);
+        if (!g_key_file_load_from_file(desktopFile.get(), candidate.toUtf8().constData(), G_KEY_FILE_NONE, nullptr))
+            continue;
+        std::shared_ptr<char> appImageMarker(
+            g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP,
+                                  "X-AppImageController-AppImage", nullptr),
+            g_free);
+        if (appImageMarker && QFileInfo(QString::fromUtf8(appImageMarker.get())).absoluteFilePath() ==
+                                  QFileInfo(pathToAppImage).absoluteFilePath()) {
+            desktopFilePath = candidate;
+            break;
+        }
+    }
+    if (desktopFilePath.isEmpty()) {
+        const auto* registeredPath =
+            appimage_registered_desktop_file_path(pathToAppImage.toStdString().c_str(), nullptr, false);
+        if (registeredPath != nullptr)
+            desktopFilePath = QString::fromUtf8(registeredPath);
+    }
+    if (desktopFilePath.isEmpty()) {
+        qWarning() << "Could not find desktop entry for AppImage:" << pathToAppImage;
+        return false;
+    }
+
     auto ownBinaryMTime = getMTime(ownBinaryPath.get());
     auto desktopFileMTime = getMTime(desktopFilePath);
 
@@ -1153,6 +1355,278 @@ bool desktopFileHasBeenUpdatedSinceLastUpdate(const QString& pathToAppImage) {
 bool isAppImage(const QString& path) {
     const auto type = appimage_get_type(path.toUtf8(), false);
     return type > 0 && type <= 2;
+}
+
+namespace {
+
+    QString appImageSettingsPath() {
+        return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
+               "/appimagelauncher/appimages.ini";
+    }
+
+    bool prepareAppImageSettingsDirectory() {
+        const auto directory = QFileInfo(appImageSettingsPath()).absolutePath();
+        if (QDir().mkpath(directory))
+            return true;
+
+        qCritical() << "Could not create AppImage preferences directory:" << directory;
+        return false;
+    }
+
+    QString appImageSettingsKey(const QString& value) {
+        return QString::fromLatin1(QCryptographicHash::hash(value.toUtf8(), QCryptographicHash::Sha256).toHex());
+    }
+
+    struct AppImageMetadata {
+        QString identity;
+        QString name;
+    };
+
+    AppImageMetadata appImageMetadata(const QString& path) {
+        const auto pathString = path.toStdString();
+        char** fileList = appimage_list_files(pathString.c_str());
+        if (fileList == nullptr)
+            return {"path:" + QFileInfo(path).absoluteFilePath(), QFileInfo(path).completeBaseName()};
+
+        QStringList desktopFiles;
+        for (char** file = fileList; *file != nullptr; ++file) {
+            auto filePath = QDir::cleanPath(QString::fromUtf8(*file));
+            if (filePath.startsWith("./"))
+                filePath.remove(0, 2);
+            if (filePath.startsWith('/'))
+                filePath.remove(0, 1);
+            if (filePath.startsWith("usr/share/applications/") && filePath.endsWith(".desktop")) {
+                desktopFiles << filePath;
+            }
+        }
+        appimage_string_list_free(fileList);
+        desktopFiles.sort();
+
+        if (desktopFiles.empty()) {
+            return {"path:" + QFileInfo(path).absoluteFilePath(), QFileInfo(path).completeBaseName()};
+        }
+
+        QString identity;
+        QString displayName;
+        bool ambiguousIdentity = false;
+        bool missingIdentity = false;
+        for (const auto& desktopFilePath : desktopFiles) {
+            char* contents = nullptr;
+            unsigned long contentsSize = 0;
+            if (!appimage_read_file_into_buffer_following_symlinks(
+                    pathString.c_str(), desktopFilePath.toStdString().c_str(), &contents, &contentsSize)) {
+                continue;
+            }
+
+            std::unique_ptr<char, decltype(&free)> contentsGuard(contents, free);
+            std::unique_ptr<GKeyFile, decltype(&g_key_file_free)> desktopFile(g_key_file_new(), g_key_file_free);
+            if (!g_key_file_load_from_data(desktopFile.get(), contents, contentsSize, G_KEY_FILE_NONE, nullptr))
+                continue;
+
+            const auto getDesktopValue = [&desktopFile](const char* key) {
+                std::unique_ptr<char, decltype(&g_free)> value(
+                    g_key_file_get_string(desktopFile.get(), G_KEY_FILE_DESKTOP_GROUP, key, nullptr), g_free);
+                return value ? QString::fromUtf8(value.get()).trimmed() : QString{};
+            };
+
+            auto candidateIdentity = getDesktopValue("X-AppImage-ID");
+
+            if (!candidateIdentity.isEmpty()) {
+                if (!identity.isEmpty() && identity.compare(candidateIdentity, Qt::CaseInsensitive) != 0)
+                    ambiguousIdentity = true;
+                identity = candidateIdentity;
+            } else if (desktopFiles.size() == 1) {
+                identity = QFileInfo(desktopFilePath).completeBaseName();
+            } else {
+                missingIdentity = true;
+            }
+
+            if (displayName.isEmpty())
+                displayName = getDesktopValue(G_KEY_FILE_DESKTOP_KEY_NAME);
+        }
+
+        if (identity.isEmpty() || ambiguousIdentity || missingIdentity)
+            return {"path:" + QFileInfo(path).absoluteFilePath(), QFileInfo(path).completeBaseName()};
+
+        if (displayName.isEmpty())
+            displayName = QFileInfo(path).completeBaseName();
+
+        return {"desktop:" + identity.toCaseFolded(), displayName};
+    }
+
+    bool saveAppImageSettings(QSettings& settings) {
+        settings.sync();
+        if (settings.status() == QSettings::NoError)
+            return true;
+
+        qCritical() << "Could not save AppImage preferences:" << settings.fileName()
+                    << "status:" << settings.status();
+        return false;
+    }
+
+}
+
+bool recordDetectedAppImage(const QString& path) {
+    if (!prepareAppImageSettingsDirectory())
+        return false;
+
+    const auto absolutePath = QFileInfo(path).absoluteFilePath();
+    const auto metadata = appImageMetadata(absolutePath);
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    const auto group = "detected/" + appImageSettingsKey(absolutePath);
+    settings.beginGroup(group);
+    settings.setValue("path", absolutePath);
+    settings.setValue("identity", metadata.identity);
+    settings.setValue("name", metadata.name);
+    settings.endGroup();
+    return saveAppImageSettings(settings);
+}
+
+void forgetDetectedAppImage(const QString& path) {
+    if (!prepareAppImageSettingsDirectory())
+        return;
+
+    const auto absolutePath = QFileInfo(path).absoluteFilePath();
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    settings.remove("detected/" + appImageSettingsKey(absolutePath));
+    saveAppImageSettings(settings);
+}
+
+QList<DetectedAppImage> detectedAppImages() {
+    QList<DetectedAppImage> appImages;
+    if (!prepareAppImageSettingsDirectory())
+        return appImages;
+
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    const auto groups = settings.childGroups();
+    if (!groups.contains("detected"))
+        return appImages;
+
+    settings.beginGroup("detected");
+    for (const auto& key : settings.childGroups()) {
+        settings.beginGroup(key);
+        const auto path = settings.value("path").toString();
+        const auto identity = settings.value("identity").toString();
+        const auto name = settings.value("name").toString();
+        settings.endGroup();
+
+        if (!QFileInfo::exists(path))
+            continue;
+
+        AppImageIntegrationDecision decision = AppImageIntegrationDecision::Undecided;
+        if (!identity.isEmpty()) {
+            QSettings decisions(appImageSettingsPath(), QSettings::IniFormat);
+            decisions.beginGroup("decisions/" + appImageSettingsKey(identity));
+            const auto storedIdentity = decisions.value("identity").toString();
+            if (storedIdentity == identity) {
+                const auto storedDecision =
+                    decisions.value("decision", static_cast<int>(AppImageIntegrationDecision::Undecided)).toInt();
+                if (storedDecision >= static_cast<int>(AppImageIntegrationDecision::Undecided) &&
+                    storedDecision <= static_cast<int>(AppImageIntegrationDecision::DoNotIntegrate)) {
+                    decision = static_cast<AppImageIntegrationDecision>(storedDecision);
+                } else {
+                    qWarning() << "Invalid saved AppImage integration decision for" << path;
+                }
+            }
+        }
+
+        QSettings arguments(appImageSettingsPath(), QSettings::IniFormat);
+        arguments.beginGroup("launchArguments/" + appImageSettingsKey(identity));
+        const auto launchArguments = arguments.value("identity").toString() == identity
+                                         ? arguments.value("arguments").toString()
+                                         : QString{};
+        arguments.endGroup();
+        appImages << DetectedAppImage{path, name, decision, launchArguments};
+    }
+    settings.endGroup();
+    std::sort(appImages.begin(), appImages.end(), [](const auto& left, const auto& right) {
+        return left.name.toCaseFolded() < right.name.toCaseFolded();
+    });
+    return appImages;
+}
+
+AppImageIntegrationDecision appImageIntegrationDecision(const QString& path) {
+    if (!prepareAppImageSettingsDirectory())
+        return AppImageIntegrationDecision::Undecided;
+
+    const auto metadata = appImageMetadata(path);
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    settings.beginGroup("decisions/" + appImageSettingsKey(metadata.identity));
+    if (settings.value("identity").toString() != metadata.identity)
+        return AppImageIntegrationDecision::Undecided;
+
+    const auto value = settings.value("decision", static_cast<int>(AppImageIntegrationDecision::Undecided)).toInt();
+    if (value < static_cast<int>(AppImageIntegrationDecision::Undecided) ||
+        value > static_cast<int>(AppImageIntegrationDecision::DoNotIntegrate)) {
+        qWarning() << "Invalid saved AppImage integration decision for" << path;
+        return AppImageIntegrationDecision::Undecided;
+    }
+    return static_cast<AppImageIntegrationDecision>(value);
+}
+
+bool setAppImageIntegrationDecision(const QString& path, AppImageIntegrationDecision decision) {
+    if (!prepareAppImageSettingsDirectory())
+        return false;
+
+    const auto metadata = appImageMetadata(path);
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    const auto group = "decisions/" + appImageSettingsKey(metadata.identity);
+    if (decision == AppImageIntegrationDecision::Undecided) {
+        settings.remove(group);
+    } else {
+        settings.beginGroup(group);
+        settings.setValue("identity", metadata.identity);
+        settings.setValue("decision", static_cast<int>(decision));
+        settings.endGroup();
+    }
+    return saveAppImageSettings(settings);
+}
+
+QString appImageLaunchArguments(const QString& path) {
+    if (!prepareAppImageSettingsDirectory())
+        return {};
+
+    const auto metadata = appImageMetadata(path);
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    settings.beginGroup("launchArguments/" + appImageSettingsKey(metadata.identity));
+    const auto arguments = settings.value("identity").toString() == metadata.identity
+                               ? settings.value("arguments").toString()
+                               : QString{};
+    settings.endGroup();
+    return arguments;
+}
+
+bool setAppImageLaunchArguments(const QString& path, const QString& arguments) {
+    if (!prepareAppImageSettingsDirectory())
+        return false;
+
+    if (!arguments.trimmed().isEmpty()) {
+        int argumentCount = 0;
+        char** parsedArguments = nullptr;
+        GError* parseError = nullptr;
+        const auto parsed = g_shell_parse_argv(arguments.toUtf8().constData(), &argumentCount, &parsedArguments,
+                                               &parseError);
+        if (!parsed) {
+            qWarning() << "Invalid AppImage launch arguments:" << (parseError ? parseError->message : "parse failed");
+            if (parseError != nullptr)
+                g_error_free(parseError);
+            return false;
+        }
+        g_strfreev(parsedArguments);
+    }
+
+    const auto metadata = appImageMetadata(path);
+    QSettings settings(appImageSettingsPath(), QSettings::IniFormat);
+    const auto group = "launchArguments/" + appImageSettingsKey(metadata.identity);
+    if (arguments.trimmed().isEmpty()) {
+        settings.remove(group);
+    } else {
+        settings.beginGroup(group);
+        settings.setValue("identity", metadata.identity);
+        settings.setValue("arguments", arguments);
+        settings.endGroup();
+    }
+    return saveAppImageSettings(settings);
 }
 
 QString which(const std::string& name) {
@@ -1278,7 +1752,7 @@ QString pathToPrivateDataDirectory() {
     }
 
     if (!QDir(dataDir).exists()) {
-        std::cerr << "[AppImageLauncher] Warning: "
+        std::cerr << "[AppImage Controller] Warning: "
                   << "Path to private data directory could not be found" << std::endl;
         return "";
     }
@@ -1287,12 +1761,11 @@ QString pathToPrivateDataDirectory() {
 }
 
 bool unregisterAppImage(const QString& pathToAppImage) {
-    auto rv = appimage_unregister_in_system(pathToAppImage.toStdString().c_str(), false);
-
-    if (rv != 0)
+    const auto desktopFile = findControllerDesktopFile(pathToAppImage);
+    if (!desktopFile.isEmpty() && !QFile::remove(desktopFile))
         return false;
 
-    return true;
+    return appimage_unregister_in_system(pathToAppImage.toStdString().c_str(), false) == 0;
 }
 
 QIcon loadIconWithFallback(const QString& iconName) {
@@ -1302,7 +1775,7 @@ QIcon loadIconWithFallback(const QString& iconName) {
     // first we check the directory that would be expected with in the build environment
     QDir fallbackIconDirectory = QDir(binaryDir + "/../../resources/" + subdirName);
 
-    // if that doesn't work, we check the private data directory, which should work when AppImageLauncher is installed
+    // if that doesn't work, we check the private data directory, which should work when AppImage Controller is installed
     // through the packages or in Lite's AppImage
     if (!fallbackIconDirectory.exists()) {
         auto privateDataDir = pathToPrivateDataDirectory();
@@ -1315,7 +1788,7 @@ QIcon loadIconWithFallback(const QString& iconName) {
     // fallback icons aren't critical enough to exit the application if they can't be found
     // after all, the theme icons may work just as well
     if (!fallbackIconDirectory.exists()) {
-        std::cerr << "[AppImageLauncher] Warning:"
+        std::cerr << "[AppImage Controller] Warning:"
                   << "fallback icons could not be loaded: directory could not be found" << std::endl;
         return QIcon{};
     }
@@ -1326,7 +1799,7 @@ QIcon loadIconWithFallback(const QString& iconName) {
     const auto iconPath = fallbackIconDirectory.filePath(iconFilename);
 
     if (!QFileInfo(iconPath).isFile()) {
-        std::cerr << "[AppImageLauncher] Warning: can't find fallback icon for name"
+        std::cerr << "[AppImage Controller] Warning: can't find fallback icon for name"
                   << iconName.toStdString() << std::endl;
         return QIcon{};
     }

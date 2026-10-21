@@ -88,6 +88,13 @@ p, li { white-space: pre-wrap; }
     </layout>
    </item>
    <item>
+    <widget class="QCheckBox" name="rememberChoiceCheckBox">
+     <property name="text">
+      <string>Remember my choice for this application</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <spacer name="horizontalSpacer">

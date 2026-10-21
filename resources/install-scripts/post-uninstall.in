@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-echo "Removing AppImageLauncher as interpreter for AppImages"
+echo "Removing AppImage Controller as interpreter for AppImages"
 (set -x; systemctl restart systemd-binfmt)
 
 update_notifier="/usr/share/update-notifier/notify-reboot-required"

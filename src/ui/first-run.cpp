@@ -112,7 +112,7 @@ private:
 
         // set up logo in a QLabel
         firstRunDialog->logoLabel->setText("");
-        auto pixmap = QPixmap::fromImage(QImage(":/AppImageLauncher.svg")).scaled(QSize(128,128),
+        auto pixmap = QPixmap::fromImage(QImage(":/AppImageController.svg")).scaled(QSize(128,128),
                 Qt::KeepAspectRatio, Qt::SmoothTransformation
         );
         firstRunDialog->logoLabel->setPixmap(pixmap);

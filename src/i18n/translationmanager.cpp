@@ -1,10 +1,13 @@
 // system headers
 #include <iostream>
+#include <memory>
 
 // library headers
 #include <QDebug>
 #include <QDir>
 #include <QLibraryInfo>
+#include <QLocale>
+#include <QSettings>
 #include <QString>
 
 // local headers
@@ -12,57 +15,71 @@
 #include "translationmanager.h"
 
 TranslationManager::TranslationManager(QCoreApplication& app) : app(app) {
-    // set up translations
-    auto qtTranslator = new QTranslator();
-    qtTranslator->load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
-    app.installTranslator(qtTranslator);
+    qtTranslator.load("qt_" + QLocale::system().name(), QLibraryInfo::location(QLibraryInfo::TranslationsPath));
+    app.installTranslator(&qtTranslator);
 
-    const auto systemLocale = QLocale::system().name();
-
-    // we're using primarily short names for translations, so we should load these translations as well
-    const auto shortSystemLocale = systemLocale.split('_')[0];
-
-    const auto translationDir = getTranslationDir();
-
-    auto myappTranslator = new QTranslator();
-    myappTranslator->load(translationDir + "/ui." + systemLocale + ".qm");
-    myappTranslator->load(translationDir + "/ui." + shortSystemLocale + ".qm");
-    app.installTranslator(myappTranslator);
-
-    // store translators in list so they won't be deleted
-    installedTranslators.push_back(qtTranslator);
-    installedTranslators.push_back(myappTranslator);
+    std::unique_ptr<QSettings> settings(getConfig());
+    setLanguage(settings->value("AppImageController/language", "system").toString());
 }
 
 TranslationManager::~TranslationManager() {
-    for (auto& translator : installedTranslators) {
-        delete translator;
-        translator = nullptr;
+    app.removeTranslator(&appTranslator);
+    app.removeTranslator(&qtTranslator);
+}
+
+bool TranslationManager::setLanguage(const QString& languageCode) {
+    app.removeTranslator(&appTranslator);
+
+    const auto useSystemDefault = languageCode.isEmpty() || languageCode == "system";
+    auto localeName = languageCode;
+    if (useSystemDefault)
+        localeName = QLocale::system().name();
+    else if (localeName == "pt")
+        localeName = "pt_PT";
+
+    const auto translationDir = getTranslationDir();
+    const auto exactPath = translationDir + "/ui." + localeName + ".qm";
+    auto loaded = appTranslator.load(exactPath);
+
+    if (!loaded && localeName.contains('_'))
+        loaded = appTranslator.load(translationDir + "/ui." + localeName.section('_', 0, 0) + ".qm");
+    if (!loaded && useSystemDefault)
+        loaded = appTranslator.load(translationDir + "/ui.en.qm");
+
+    if (!loaded) {
+        std::cerr << "[AppImageController] Warning: translation could not be loaded for "
+                  << localeName.toStdString() << std::endl;
+        return false;
     }
+
+    app.installTranslator(&appTranslator);
+    return true;
+}
+
+QStringList TranslationManager::availableLanguages() {
+    const QDir translationDir(getTranslationDir());
+    QStringList languages;
+    for (const auto& filename : translationDir.entryList({"ui.*.qm"}, QDir::Files, QDir::Name)) {
+        auto locale = filename.mid(3, filename.size() - 6);
+        if (locale != "en" && locale != "pt")
+            languages.append(locale);
+    }
+    languages.prepend("en");
+    return languages;
 }
 
 QString TranslationManager::getTranslationDir() {
-    // first we need to find the translation directory
-    // if this is run from the build tree, we try a path that can only work within the build directory
-    // then, we try the expected install location relative to the main binary
     const auto binaryDirPath = QApplication::applicationDirPath();
-
-    // previously the path to the repo root dir was embedded to allow for finding the compiled translations
-    // this lead to irreproducible builds
-    // therefore the files are now generated within the build dir, and we guess the path based on the binary location
     auto translationDir = binaryDirPath + "/../../i18n/generated/l10n";
 
-    // when the application is installed, we need to look for the files in the private data directory
     if (!QDir(translationDir).exists()) {
-        auto privateDataDir = pathToPrivateDataDirectory();
-        if (!privateDataDir.isEmpty()) {
+        const auto privateDataDir = pathToPrivateDataDirectory();
+        if (!privateDataDir.isEmpty())
             translationDir = privateDataDir + "/l10n";
-        }
     }
 
-    // give the user (and dev) some feedback whether the translations could actually be found or not
     if (!QDir(translationDir).exists()) {
-        std::cerr << "[AppImageLauncher] Warning: "
+        std::cerr << "[AppImageController] Warning: "
                   << "Translation directory could not be found, translations are likely not available" << std::endl;
     }
 

@@ -58,7 +58,7 @@ namespace appimagelauncher {
                     // check for X-AppImage-Integrate=false
                     auto shallNotBeIntegrated = appimage_shall_not_be_integrated(pathToAppImage.toStdString().c_str());
                     if (shallNotBeIntegrated < 0) {
-                        throw CliError("AppImageLauncher error: appimage_shall_not_be_integrated() failed (returned " + QString::number(shallNotBeIntegrated) + ")");
+                        throw CliError("AppImage Controller error: appimage_shall_not_be_integrated() failed (returned " + QString::number(shallNotBeIntegrated) + ")");
                     } else if (shallNotBeIntegrated > 0) {
                         throw WouldNotIntegrateError("AppImage should not be integrated");
                     }
@@ -70,7 +70,7 @@ namespace appimagelauncher {
                     // ignore terminal apps (fixes #2)
                     auto isTerminalApp = appimage_is_terminal_app(pathToAppImage.toStdString().c_str());
                     if (isTerminalApp < 0) {
-                        throw CliError("AppImageLauncher error: appimage_is_terminal_app() failed (returned " + QString::number(isTerminalApp) + ")");
+                        throw CliError("AppImage Controller error: appimage_is_terminal_app() failed (returned " + QString::number(isTerminalApp) + ")");
                     } else if (isTerminalApp > 0) {
                         throw WouldNotIntegrateError("Terminal AppImages should not be integrated");
                     }

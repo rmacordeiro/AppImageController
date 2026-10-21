@@ -1,11 +1,11 @@
 name: "Bug report"
-description: "Report a bug to help us improve AppImageLauncher"
+description: "Report a bug to help us improve AppImage Controller"
 labels: ["bug", "needs verification"]
 body:
 - type: markdown
   attributes:
     value: |
-      Thank you for making AppImageLauncher better by reporting a bug. Please fill in as much information as possible about your bog so that we do not have to play "information ping-pong" but can help you immediately.
+      Thank you for making AppImage Controller better by reporting a bug. Please fill in as much information as possible about your bog so that we do not have to play "information ping-pong" but can help you immediately.
 
       If this is the first time you report a bug, please read https://www.chiark.greenend.org.uk/~sgtatham/bugs.html.
 
@@ -67,9 +67,9 @@ body:
 - type: textarea
   id: appimagelauncher-version
   attributes:
-    label: Installed AppImageLauncher version
+    label: Installed AppImage Controller version
     description: Please post the output of `AppImageLauncher --appimagelauncher-version`.
-    placeholder: For example, AppImageLauncher version 2.2.0 (git commit ea0984c), built on 2021-12-22 22:03:21 UTC
+    placeholder: For example, AppImage Controller version 2.2.0 (git commit ea0984c), built on 2021-12-22 22:03:21 UTC
   validations:
     required: true
 - type: textarea

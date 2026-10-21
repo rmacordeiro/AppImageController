@@ -20,6 +20,19 @@ enum IntegrationState {
     INTEGRATION_ABORTED
 };
 
+enum class AppImageIntegrationDecision {
+    Undecided,
+    Integrate,
+    DoNotIntegrate
+};
+
+struct DetectedAppImage {
+    QString path;
+    QString name;
+    AppImageIntegrationDecision decision;
+    QString launchArguments;
+};
+
 // standard location for integrated AppImages
 // currently hardcoded, can not be changed by users
 static const auto DEFAULT_INTEGRATION_DESTINATION = QString(getenv("HOME")) + "/Applications/";
@@ -96,6 +109,11 @@ QString getAppImageDigestMd5(const QString& path);
 // checks whether AppImage has been integrated already
 bool hasAlreadyBeenIntegrated(const QString& pathToAppImage);
 
+/**
+ * Checks whether any desktop entry (from this tool or any other) already launches the AppImage.
+ */
+bool hasExistingDesktopEntry(const QString& pathToAppImage);
+
 // checks whether file is in a given directory
 bool isInDirectory(const QString& pathToAppImage, const QDir& directory);
 
@@ -110,6 +128,17 @@ bool desktopFileHasBeenUpdatedSinceLastUpdate(const QString& pathToAppImage);
 
 // checks whether a file is an AppImage
 bool isAppImage(const QString& path);
+
+// persist and retrieve AppImages found by the daemon
+bool recordDetectedAppImage(const QString& path);
+void forgetDetectedAppImage(const QString& path);
+QList<DetectedAppImage> detectedAppImages();
+QString appImageLaunchArguments(const QString& path);
+bool setAppImageLaunchArguments(const QString& path, const QString& arguments);
+
+// persist integration preferences by embedded desktop application identity
+AppImageIntegrationDecision appImageIntegrationDecision(const QString& path);
+bool setAppImageIntegrationDecision(const QString& path, AppImageIntegrationDecision decision);
 
 // when a file doesn't belong to the current user, this method shows a dialog asking whether to relaunch as that user
 // this can be used when e.g., updating AppImages owned by root or other users

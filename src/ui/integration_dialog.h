@@ -23,6 +23,7 @@ public:
     ~IntegrationDialog() override;
 
     ResultingAction getResultAction() const;
+    bool rememberChoice() const;
 
 protected:
     Q_SLOT void onPushButtonIntegrateAndRunReleased();

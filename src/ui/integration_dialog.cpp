@@ -35,7 +35,7 @@ void IntegrationDialog::setMessage() {
 }
 
 void IntegrationDialog::setIcon() {
-    QIcon icon = QIcon(":/AppImageLauncher.svg");
+    QIcon icon = QIcon(":/AppImageController.svg");
     QPixmap pixmap = icon.pixmap(QSize(64, 64));
     ui->icon->setPixmap(pixmap);
 }
@@ -56,4 +56,8 @@ void IntegrationDialog::onPushButtonRunOnceReleased() {
 
 IntegrationDialog::ResultingAction IntegrationDialog::getResultAction() const {
     return resultAction;
+}
+
+bool IntegrationDialog::rememberChoice() const {
+    return ui->rememberChoiceCheckBox->isChecked();
 }

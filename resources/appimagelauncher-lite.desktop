@@ -1,7 +1,7 @@
 [Desktop Entry]
-Name=appimagelauncher-lite
+Name=AppImage Controller Lite
 Exec=appimagelauncher-lite
-Icon=AppImageLauncher
+Icon=AppImageController
 Type=Application
 X-AppImage-Integrate=false
 NoDisplay=true

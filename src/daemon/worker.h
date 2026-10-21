@@ -25,7 +25,6 @@ namespace appimagelauncher::daemon {
         void startTimer();
 
     public slots:
-        void scheduleForIntegration(const QString& path);
         void scheduleForUnintegration(const QString& path);
 
     public slots:
