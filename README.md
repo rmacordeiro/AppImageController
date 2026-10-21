@@ -1,5 +1,5 @@
 # AppImage Controller
-makes your Linux desktop AppImage ready™
+Makes your Linux desktop AppImage ready™
 <p align="center">
 <img src="resources/icons/appimage-controller-icon.svg" alt="AppImage Controller logo"/>
 </p>
@@ -30,7 +30,7 @@ The optional detection daemon records AppImages found in its watched directories
 
 ### AppImage desktop integration
 
-This core feature allows you to integrate AppImages you download into your application menu or launcher, to make it easier for you to launch them. It also takes care of moving them into a central location, where you can find them later.
+This core feature allows you to integrate AppImages you download into your application menu or launcher to make it easier for you to launch them. It also takes care of moving them into a central location, where you can find them later.
 Furthermore, it sets up the update and removal entries in the launcher for you.
 
 AppImages use the term "desktop integration", as they're not "installed" in the traditional sense. They remain single, self-contained executable files. AppImage Controller and other tools extract and patch the [desktop entry](https://specifications.freedesktop.org/desktop-entry-spec/latest/) as well as the related [icons](https://specifications.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html) into the relevant locations. Integrated files keep their original filename (without an added checksum). A trailing semantic version in the desktop entry's application name is omitted from the menu shortcut.
@@ -64,17 +64,17 @@ If you choose to do so, the desktop integration is undone, and the file is remov
 
 ### CLI
 
-The packages ship with a CLI tool called `ail-cli`, providing basic operations in the terminal, for automation in scripts etc. As of February 2020, only integration and unintegration are supported. More features planned!
+The packages ship with a CLI tool called `ail-cli`, providing basic operations in the terminal for automation in scripts, etc. As of February 2020, only integration and unintegration are supported. More features planned!
 
 ## About
 
 Currently, desktop environments consider executables a security risk, and would rather have users use the app stores they include.
 
-The ability to easily run them, however, isn't all that's needed to provide a good AppImage desktop experience. Making them accessible from the application menus and launchers is a level of "desktop integration" that can't be provided by the AppImages themselves properly (even though some AppImages ship with a "desktop integration script" prompting the user to do so). There are too many impliciations requiring external software, especially regarding cleanup and removal of AppImages. (If applications are simply made executable, they're still spread all over the users' personal files and folders.) The average user will not find a "Downloads" directory full of AppImages with cryptic filenames friendly.
+The ability to easily run them, however, isn't all that's needed to provide a good AppImage desktop experience. Making them accessible from the application menus and launchers is a level of "desktop integration" that can't be provided by the AppImages themselves properly (even though some AppImages ship with a "desktop integration script" prompting the user to do so). There are too many implications requiring external software, especially regarding cleanup and removal of AppImages. (If applications are simply made executable, they're still spread all over the users' personal files and folders.) The average user will not find a "Downloads" directory full of AppImages with cryptic filenames friendly.
 
 Therefore, system-side ways have been developed to perform the desktop integration.
 One of the first solutions was [appimaged](https://github.com/AppImage/appimaged), a daemon users could install to perform everything automagically in the background, without notifying the user in any way.
-It scans a predefined set of directories including `~/Downloads` and `~/.bin`, making recognized AppImages executable and then performing the desktop integration. Those operations and monitoring produced a lot of file I/O, so were rather inefficent. Also, many users don't like the lack of control. The approach also opens attack vectors and thus can be considered a security hazard, as a vulnerability discovered in appimaged recently has shown.
+It scans a predefined set of directories including `~/Downloads` and `~/.bin`, making recognized AppImages executable and then performing the desktop integration. Those operations and monitoring produced a lot of file I/O, so were rather inefficient. Also, many users don't like the lack of control. The approach also opens attack vectors and thus can be considered a security hazard, as a vulnerability discovered in appimaged recently has shown.
 
 **Traditional packages are highly recommended *if possible*, as they provide many more features and provide a much better overall experience.** The full build also produces an AppImage alongside the Debian and RPM packages; this AppImage is a portable build artifact, while the native packages provide the system integration required for the complete experience.
 
@@ -92,7 +92,7 @@ AppImage Controller integrates deeply into the system. Therefore, an installatio
 
 The installation of packages on systems with a set of packages similar to one of the listed ones (e.g., Linux Mint, Fedora, etc.) should work as well.
 
-Other systems derived from the listed ones, such as for instance Linux Mint (Ubuntu), should support AppImage Controller as well.
+Other systems derived from the listed ones, such as, for instance, Linux Mint (Ubuntu), should support AppImage Controller as well.
 
 ### Build from source
 
@@ -100,7 +100,7 @@ Build instructions in [BUILD.md](BUILD.md).
 
 ### Regenerating icons
 
-`resources/icons/generate-icons.sh` renders the logo (`appimage-controller-icon.svg`) to `hicolor/` PNG sizes using Inkscape, or `rsvg-convert` if Inkscape is not installed. The logo SVG avoids masks and SVG2-only syntax so it also renders correctly in Qt.
+`resources/icons/generate-icons.sh` renders the logo (`appimage-controller-icon.svg`) to `hicolor/` PNG sizes using Inkscape, or `rsvg-convert` if Inkscape is not installed. The logo SVG avoids masks and SVG2-only syntax, so it also renders correctly in Qt.
 
 ## Background
 
