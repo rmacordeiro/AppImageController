@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-echo "Installing AppImageLauncher as interpreter for AppImages"
+echo "Installing AppImage Controller as interpreter for AppImages"
 
 # as there's no _real_ package that we could use as a dependency to take care of the kernel module,
 # we need to make sure that the kernel module is loaded manually

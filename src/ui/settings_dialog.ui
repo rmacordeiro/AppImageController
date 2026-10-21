@@ -6,12 +6,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>539</width>
-    <height>459</height>
+    <width>1050</width>
+    <height>650</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>AppImageLauncher Settings</string>
+   <string notr="true">AppImage Controller Settings</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -21,9 +21,36 @@
      </property>
      <widget class="QWidget" name="launcherTab">
       <attribute name="title">
-       <string notr="true">AppImageLauncher</string>
+       <string notr="true">AppImage Controller</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
+       <item>
+        <layout class="QHBoxLayout" name="languageLayout">
+         <item>
+          <widget class="QLabel" name="languageLabel">
+           <property name="text">
+            <string>Language:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="languageComboBox"/>
+         </item>
+         <item>
+          <spacer name="languageHorizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
        <item>
         <widget class="QGroupBox" name="launcherGroupBox">
          <property name="title">
@@ -143,7 +170,7 @@
      </widget>
      <widget class="QWidget" name="daemonTab">
       <attribute name="title">
-       <string notr="true">appimagelauncherd</string>
+       <string notr="true">AppImage Controller Daemon</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
@@ -158,10 +185,10 @@
           <item>
            <widget class="QCheckBox" name="daemonIsEnabledCheckBox">
             <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this box is checked, AppImageLauncher automatically starts a daemon called appimagelauncherd.&lt;/p&gt;&lt;p&gt;This daemon automatically integrates AppImages you copy into the &amp;quot;Applications directory&amp;quot; and the additional directories you configured. When the files are deleted, the daemon will clean up the integration data.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When this box is checked, AppImage Controller automatically starts its detection daemon.&lt;/p&gt;&lt;p&gt;This daemon lists AppImages found in the &amp;quot;Applications directory&amp;quot; and the additional directories you configured. It does not integrate AppImages automatically.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
-             <string>Auto start auto-integration daemon</string>
+             <string>Auto start AppImage detection daemon</string>
             </property>
            </widget>
           </item>
@@ -188,7 +215,7 @@
                <string>Add new directory to list</string>
               </property>
               <property name="icon">
-               <iconset theme="list-add">
+               <iconset theme="add">
                 <normaloff>.</normaloff>.</iconset>
               </property>
              </widget>
@@ -202,7 +229,7 @@
                <string>Remove selected directory from list</string>
               </property>
               <property name="icon">
-               <iconset theme="list-remove">
+               <iconset theme="remove">
                 <normaloff>.</normaloff>.</iconset>
               </property>
              </widget>
@@ -224,6 +251,126 @@
           </item>
          </layout>
         </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="detectedAppImagesTab">
+      <attribute name="title">
+       <string>Detected AppImages</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="detectedAppImagesLayout">
+       <item>
+        <widget class="QLabel" name="detectedAppImagesDescription">
+         <property name="text">
+          <string>AppImages found in watched directories are listed here. Detection never integrates an AppImage automatically. Choices are reused across versions when embedded desktop metadata provides an unambiguous application identity; otherwise they apply only to that file.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTableWidget" name="detectedAppImagesTableWidget">
+         <property name="columnCount">
+          <number>4</number>
+         </property>
+         <property name="rowCount">
+          <number>0</number>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SingleSelection</enum>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <property name="textElideMode">
+          <enum>Qt::ElideNone</enum>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed</set>
+         </property>
+         <column>
+          <property name="text">
+           <string>App Name</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Action</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Location</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Launch Arguments</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="detectedAppImagesButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="integrateDetectedAppImageButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Integrate</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="declineDetectedAppImageButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Do not integrate</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="clearAppImageDecisionButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Clear decision</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="launchDetectedAppImageButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Launch</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="deleteDetectedAppImageButton">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Delete from disk</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="refreshDetectedAppImagesButton">
+           <property name="text">
+            <string>Refresh</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </widget>

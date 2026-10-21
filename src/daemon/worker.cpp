@@ -1,17 +1,11 @@
 // system includes
-#include <atomic>
 #include <iostream>
 #include <deque>
 
 // library includes
 #include <QDebug>
-#include <QFile>
 #include <QObject>
-#include <QSysInfo>
 #include <QTimer>
-#include <QThreadPool>
-#include <QMutexLocker>
-#include <appimage/appimage.h>
 
 // local includes
 #include "worker.h"
@@ -20,8 +14,7 @@
 namespace {
 
     enum OP_TYPE {
-        INTEGRATE = 0,
-        UNINTEGRATE = 1,
+        UNINTEGRATE = 0,
     };
 
     typedef std::pair<QString, OP_TYPE> Operation;
@@ -41,56 +34,6 @@ namespace appimagelauncher::daemon {
         // std::set is unordered, therefore using std::deque to keep the order of the operations
         std::deque<Operation> deferredOperations;
 
-        class OperationTask : public QRunnable {
-        private:
-            Operation operation;
-            QMutex* mutex;
-
-        public:
-            OperationTask(const Operation& operation, QMutex* mutex) : operation(operation), mutex(mutex) {}
-
-            void run() override {
-                const auto& path = operation.first;
-                const auto& type = operation.second;
-
-                const auto exists = QFile::exists(path);
-                const auto appImageType = appimage_get_type(path.toStdString().c_str(), false);
-                const auto isAppImage = 0 < appImageType && appImageType <= 2;
-
-                if (type == INTEGRATE) {
-                    {   // Scope for Output Mutex Locker
-                        QMutexLocker mutexLocker(mutex);
-                        std::cout << "Integrating: " << path.toStdString() << std::endl;
-
-                        if (!exists) {
-                            std::cout << "ERROR: file does not exist, cannot integrate" << std::endl;
-                            return;
-                        }
-
-                        if (!isAppImage) {
-                            std::cout << "ERROR: not an AppImage, skipping" << std::endl;
-                            return;
-                        }
-                    }
-
-                    // check for X-AppImage-Integrate=false
-                    if (appimage_shall_not_be_integrated(path.toStdString().c_str())) {
-                        QMutexLocker mutexLocker(mutex);
-                        std::cout << "WARNING: AppImage shall not be integrated, skipping" << std::endl;
-                        return;
-                    }
-
-                    if (!installDesktopFileAndIcons(path)) {
-                        QMutexLocker mutexLocker(mutex);
-                        std::cout << "ERROR: Failed to register AppImage in system" << std::endl;
-                        return;
-                    }
-                } else if (type == UNINTEGRATE) {
-                    // nothing to do
-                }
-            }
-        };
-
     public:
         PrivateData() {
             deferredOperationsTimer.setSingleShot(true);
@@ -98,10 +41,7 @@ namespace appimagelauncher::daemon {
         }
 
     public:
-        // in addition to a simple duplicate check, this function is context sensitive
-        // it starts with the last element, and checks for duplicates until an opposite action is found
-        // for instance, when the element shall integrated, it will check for duplicates until an unintegration operation
-        // is found
+        // Ignore repeated removal notifications for the same path.
         bool isDuplicate(Operation operation) {
             for (auto it = deferredOperations.rbegin(); it != deferredOperations.rend(); ++it) {
                 if ((*it).first == operation.first) {
@@ -131,16 +71,12 @@ namespace appimagelauncher::daemon {
 
         std::cout << "Executing deferred operations" << std::endl;
 
-        QMutex outputMutex;
-
         while (!d->deferredOperations.empty()) {
             auto operation = d->deferredOperations.front();
             d->deferredOperations.pop_front();
-            QThreadPool::globalInstance()->start(new PrivateData::OperationTask(operation, &outputMutex));
+            if (operation.second == UNINTEGRATE)
+                forgetDetectedAppImage(operation.first);
         }
-
-        // wait until all AppImages have been integrated
-        QThreadPool::globalInstance()->waitForDone();
 
         std::cout << "Cleaning up old desktop integration files" << std::endl;
         if (!cleanUpOldDesktopIntegrationResources(true)) {
@@ -153,16 +89,6 @@ namespace appimagelauncher::daemon {
             std::cout << "Failed to update desktop database and icon caches" << std::endl;
 
         std::cout << "Done" << std::endl;
-    }
-
-    void Worker::scheduleForIntegration(const QString& path) {
-        auto operation = std::make_pair(path, INTEGRATE);
-        if (!d->isDuplicate(operation)) {
-            std::cout << "Scheduling for (re-)integration: " << path.toStdString() << std::endl;
-            d->deferredOperations.push_back(operation);
-            emit startTimer();
-        }
-
     }
 
     void Worker::scheduleForUnintegration(const QString& path) {

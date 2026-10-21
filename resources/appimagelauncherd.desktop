@@ -2,8 +2,8 @@
 Version=1.0
 Type=Application
 Exec=appimagelauncherd
-Name=appimagelauncherd
-Icon=appimagelauncherd
+Name=AppImage Controller Daemon
+Icon=AppImageController
 Terminal=true
 Categories=Utility;
 NoDisplay=true

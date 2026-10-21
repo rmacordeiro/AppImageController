@@ -2,8 +2,8 @@
 Version=1.0
 Type=Application
 Exec=ail-cli
-Name=AppImageLauncher CLI
-Icon=AppImageLauncher
+Name=AppImage Controller CLI
+Icon=AppImageController
 Terminal=false
 Categories=Utility;
 NoDisplay=true

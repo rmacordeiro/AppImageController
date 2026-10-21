@@ -13,9 +13,10 @@ install(
 )
 
 install(
-    DIRECTORY
-    ${CMAKE_CURRENT_SOURCE_DIR}/icons/hicolor
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/ COMPONENT APPIMAGELAUNCHER
+    FILES ${CMAKE_CURRENT_SOURCE_DIR}/icons/appimage-controller-icon.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME AppImageController.svg
+    COMPONENT APPIMAGELAUNCHER
 )
 
 install(

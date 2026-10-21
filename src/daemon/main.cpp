@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    // after (re-)integrating all AppImages, clean up old desktop integration resources before start
+    // clean up old desktop integration resources before starting the daemon
     if (!cleanUpOldDesktopIntegrationResources()) {
         std::cout << "Failed to clean up old desktop integration resources" << std::endl;
     }

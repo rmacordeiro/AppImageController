@@ -26,14 +26,14 @@ print_help() {
     echo "Usage: $0 <option> ..."
     echo
     echo "Main options:"
-    echo "  install       Install AppImageLauncher into your user account"
-    echo "  uninstall     Uninstall AppImageLauncher from your user account"
+    echo "  install       Install AppImage Controller into your user account"
+    echo "  uninstall     Uninstall AppImage Controller from your user account"
     echo "  help|--help   Display this help"
     echo
-    echo "Other options (mainly for use by AppImageLauncher Lite internally):"
+    echo "Other options (mainly for use by AppImage Controller Lite internally):"
     echo "  appimagelauncherd          Run appimagelauncherd"
-    echo "  AppImageLauncherSettings   Display AppImageLauncher Lite configuration utility"
-    echo "  cli [or ali-cli]           Run AppImageLauncher cli (use \"cli --help\" for more information)"
+    echo "  AppImageLauncherSettings   Display AppImage Controller Lite configuration utility"
+    echo "  cli [or ali-cli]           Run AppImage Controller cli (use \"cli --help\" for more information)"
     echo "  remove <path>              Run removal helper to remove AppImage <path>"
     echo "  update <path>              Run update helper to update AppImage <path>"
 }
@@ -55,7 +55,7 @@ case "$firstarg" in
         ;;
     install)
         if test_globally_installed; then
-            echo "Error: AppImageLauncher is installed system-wide already, not installing on top" 1>&2
+            echo "Error: AppImage Controller is installed system-wide already, not installing on top" 1>&2
             exit 2
         fi
 
@@ -96,20 +96,20 @@ EOF
         fi
 
         if test_installed_already; then
-            echo "Error: AppImageLauncher Lite is installed already, please uninstall before trying to reinstall" 1>&2
+            echo "Error: AppImage Controller Lite is installed already, please uninstall before trying to reinstall" 1>&2
             exit 2
         fi
 
-        echo "Installing AppImageLauncher Lite"
+        echo "Installing AppImage Controller Lite"
         ail_lite_install
         ;;
     uninstall)
         if ! test_installed_already; then
-            echo "Error: AppImageLauncher Lite does not seem to be installed" 1>&2
+            echo "Error: AppImage Controller Lite does not seem to be installed" 1>&2
             exit 2
         fi
 
-        echo "Uninstalling AppImageLauncher Lite"
+        echo "Uninstalling AppImage Controller Lite"
         ail_lite_uninstall
         ;;
     *)
@@ -117,6 +117,5 @@ EOF
         exit 2
         ;;
 esac
-
 
 

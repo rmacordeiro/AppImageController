@@ -46,7 +46,7 @@ cmake_args=(
     "-DBUILD_TESTING=OFF"
     "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
     # TODO: we don't necessarily want to hardcode this here
-    "-DBINFMT_INTERPRETER_PATH_PREPEND_LD_P_NATIVE_PACKAGES_PREFIX=/opt/appimagelauncher.AppDir/"
+    "-DBINFMT_INTERPRETER_PATH_PREPEND_LD_P_NATIVE_PACKAGES_PREFIX=/opt/appimagecontroller.AppDir/"
 )
 
 if [[ "${BUILD_LITE:-}" == "" ]]; then
@@ -92,7 +92,7 @@ else
 fi
 
 # should be overwritten for every output plugin below, this is a fallback only
-export LINUXDEPLOY_OUTPUT_APP_NAME=appimagelauncher
+export LINUXDEPLOY_OUTPUT_APP_NAME=appimagecontroller
 
 LINUXDEPLOY_OUTPUT_VERSION="${VERSION}~$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
 export LINUXDEPLOY_OUTPUT_VERSION
@@ -103,11 +103,11 @@ linuxdeploy_extra_args=()
 
 if [[ "${BUILD_LITE:-}" == "" ]]; then
     # configure linuxdeploy-plugin-native_packages
-    export LDNP_PACKAGE_NAME=appimagelauncher
+    export LDNP_PACKAGE_NAME=appimagecontroller
 
     export LDNP_BUILD="deb rpm"
-    export LDNP_DESCRIPTION=""
-    export LDNP_SHORT_DESCRIPTION=""
+    export LDNP_META_DESCRIPTION="AppImage Controller integrates and manages AppImages on the desktop."
+    export LDNP_META_SHORT_DESCRIPTION="AppImage Controller desktop integration"
 
     rpm_lib_suffix=""
 
@@ -143,6 +143,8 @@ if [[ "${BUILD_LITE:-}" == "" ]]; then
     export LDNP_META_DEB_DEPENDS="systemd, libgl1, libfontconfig1, libharfbuzz0b, libfribidi0"
     export LDNP_META_DEB_ARCHITECTURE="$deb_build_arch"
     export LDNP_META_DEB_PRE_DEPENDS="bash"
+    export LDNP_META_DEB_BREAKS="appimagelauncher"
+    export LDNP_META_DEB_REPLACES="appimagelauncher"
     export LDNP_DEB_EXTRA_DEBIAN_FILES="${BUILD_DIR}/cmake/debian/postinst;${BUILD_DIR}/cmake/debian/postrm"
 
     rpm_requires=(
@@ -155,6 +157,7 @@ if [[ "${BUILD_LITE:-}" == "" ]]; then
         "libharfbuzz.so.0${rpm_lib_suffix}"
     )
     export LDNP_META_RPM_REQUIRES="${rpm_requires[*]}"
+    export LDNP_META_RPM_OBSOLETES="appimagelauncher"
     export LDNP_META_RPM_BUILD_ARCH="$rpm_build_arch"
     export LDNP_RPM_SCRIPTLET_POST="${BUILD_DIR}/cmake/debian/postinst"
     export LDNP_RPM_SCRIPTLET_PREUN="${BUILD_DIR}/cmake/debian/postrm"
@@ -163,7 +166,10 @@ if [[ "${BUILD_LITE:-}" == "" ]]; then
     linuxdeploy_extra_args+=(
         -e "$(find AppDir/usr/lib/*/appimagelauncher/update | head -n1)"
         --output native_packages
+        --output appimage
     )
+    LDAI_OUTPUT="$(echo appimagecontroller-"$VERSION"-"$ARCH".AppImage | tr '~' '-')"
+    export LDAI_OUTPUT
 
     # tools like pipx would have side effects on the build host and it's generally a bit overkill for our purpose
     if which python3.13 &> /dev/null; then
@@ -206,7 +212,7 @@ ldd AppDir/usr/bin/AppImageLauncherSettings
     "${linuxdeploy_extra_args[@]}"
 
 if [[ "${BUILD_LITE:-}" == "" ]]; then
-    mv "$LDNP_PACKAGE_NAME"*.{rpm,deb} "$OLD_CWD"
+    mv "$LDNP_PACKAGE_NAME"*.{rpm,deb} "$LDAI_OUTPUT" "$OLD_CWD"
 else
     mv "$LDAI_OUTPUT" "$OLD_CWD"
 fi

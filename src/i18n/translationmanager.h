@@ -3,23 +3,24 @@
 // library includes
 #include <QApplication>
 #include <QTranslator>
-#include <QList>
+#include <QStringList>
 
 /*
- * Installs translations for AppImageLauncher UIs in a Qt application.
+ * Installs translations for AppImage Controller UIs in a Qt application.
  *
  * You need to keep instances of this alive until the application is terminated.
  */
 class TranslationManager {
 private:
     const QCoreApplication& app;
-    QList<QTranslator*> installedTranslators;
+    QTranslator qtTranslator;
+    QTranslator appTranslator;
 
 public:
     explicit TranslationManager(QCoreApplication& app);
     ~TranslationManager();
 
-public:
-    // get translation dir
+    bool setLanguage(const QString& languageCode);
+    static QStringList availableLanguages();
     static QString getTranslationDir();
 };

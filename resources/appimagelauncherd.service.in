@@ -1,5 +1,5 @@
 [Unit]
-Description=AppImageLauncher daemon
+Description=AppImage Controller daemon
 
 [Service]
 ExecStart=@CMAKE_INSTALL_PREFIX@/bin/appimagelauncherd

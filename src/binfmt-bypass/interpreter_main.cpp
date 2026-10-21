@@ -17,7 +17,7 @@ bool executableExists(const std::string& path) {
 }
 
 int main(int argc, char** argv) {
-    log_debug("Welcome to AppImageLauncher's binfmt_misc interpreter!\n");
+    log_debug("Welcome to the AppImage Controller binfmt_misc interpreter!\n");
 
     if (argc <= 1) {
         log_message("Usage: %s <AppImage file> [args...]\n", argv[0]);
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
 
     if (!executableExists(APPIMAGELAUNCHER_PATH)) {
         log_message(
-            "AppImageLauncher not found at %s, launching AppImage directly: %s\n",
+            "AppImage Controller not found at %s, launching AppImage directly: %s\n",
             APPIMAGELAUNCHER_PATH,
             appImagePath.c_str()
         );
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     }
 
     log_debug(
-        "AppImageLauncher found at %s, launching AppImage %s with it\n",
+        "AppImage Controller found at %s, launching AppImage %s with it\n",
         APPIMAGELAUNCHER_PATH,
         appImagePath.c_str()
     );
