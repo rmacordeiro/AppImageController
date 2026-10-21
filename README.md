@@ -1,7 +1,7 @@
 # AppImage Controller
 Makes your Linux desktop AppImage ready™
 <p align="center">
-<img src="resources/icons/appimage-controller-icon.svg" alt="AppImage Controller logo"/>
+<img src="resources/icons/hicolor/128x128/apps/AppImageController.png" alt="AppImage Controller logo"/>
 </p>
 
 This application is a clone of the AppImageLauncher developed by [TheAssassin](https://github.com/TheAssassin/AppImageLauncher).
