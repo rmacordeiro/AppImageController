@@ -106,6 +106,10 @@ Build instructions in [BUILD.md](BUILD.md).
 
 This application is a clone of the AppImageLauncher developed by [TheAssassin](https://github.com/TheAssassin/AppImageLauncher).
 
+## Development
+
+This project is developed with the assistance of AI tools. All changes are planned or approved by the author, and all AI-generated code is reviewed and tested before it is merged.
+
 ## Support
 
 If you enjoy this extension, consider buying me a tea 🍵 (I’m not really a coffee person :D)
